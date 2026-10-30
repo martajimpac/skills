@@ -1,0 +1,23 @@
+/init CLAUDE.MD GEMINI.MD AGENTS.MD
+
+-------------------------------------------------------------------------------------------------------------------
+LISTA DE PACKS DE SKILLS: 
+https://github.com/ArisGuimera/MobiAI-Core/blob/main/skills/README.es.md
+
+# Selector interactivo (recomendado la primera vez)
+mobiai skills init SELECCIONAMOS SOLO CLAUDE
+
+/marta/remove.ps1 eliminar skills que no quiero
+
+.\remove-mobiai-skills.ps1
+
+-------------------------------------------------------------------------------------------------------------------
+mobiai brain init
+npx skills add supabase/agent-skills
+
+REVISA LAS REGLAS, CLAUDE NO TIENE REGLAS, TIENE UN AGENTS.MD GLOBAL
+
+
+mobiai graph init        # indexa el proyecto en .mobiai/graph/
+
+ASEGURATE DE TENER TODAS LAS SKILLS, LA DE SPEC DRIVEN DEVELOPMENT, LA MÁS IMPORTANTE

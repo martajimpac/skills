@@ -1,3 +1,6 @@
-mobiai update
+mobiai update: CADA VEZ QUE ACTUALIZAS ELIMINA SKILLS
+
 Get-ChildItem "$HOME\.claude\skills" -Filter "SKILL.md" -Recurse |
 Select-Object FullName, LastWriteTime
+
+
