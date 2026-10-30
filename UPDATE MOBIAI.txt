@@ -1,0 +1,3 @@
+mobiai update
+Get-ChildItem "$HOME\.claude\skills" -Filter "SKILL.md" -Recurse |
+Select-Object FullName, LastWriteTime
