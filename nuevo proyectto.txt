@@ -7,9 +7,9 @@ https://github.com/ArisGuimera/MobiAI-Core/blob/main/skills/README.es.md
 # Selector interactivo (recomendado la primera vez)
 mobiai skills init SELECCIONAMOS SOLO CLAUDE
 
-/marta/remove.ps1 eliminar skills que no quiero
-
 .\remove-mobiai-skills.ps1
+ eliminar skills que NO QUIERO
+
 
 -------------------------------------------------------------------------------------------------------------------
 mobiai brain init

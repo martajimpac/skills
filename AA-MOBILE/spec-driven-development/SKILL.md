@@ -134,7 +134,7 @@ Do not assume a skill has been loaded merely because its name is known or mentio
 
 ### Mandatory Android skill routing
 
-* `mobiai-android-arquitecture`: Mandatory for all Android development tasks.
+* `mobiai-android-architecture`: Mandatory for all Android development tasks.
 * `android-jetpack-compose`: Mandatory when creating or modifying Jetpack Compose UI.
 * `edge-to-edge`: Mandatory when creating or modifying Android screens or UI components.
 * `one-shot-ui-events`: Mandatory when implementing or modifying one-shot UI events, including navigation, dialogs, toasts, and snackbars.
