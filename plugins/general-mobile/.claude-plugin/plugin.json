@@ -1,9 +1,9 @@
 {
   "name": "general-mobile",
-  "version": "1.2.1",
-  "description": "Flujo de trabajo mobile multiplataforma: SDD, skills MobiAI (TDD, debugging, verificación, PRs, crashes, Brain, Graph), Flutter y React Native. Inicializa MobiAI Brain y Graph en cada proyecto nuevo.",
+  "version": "1.4.0",
+  "description": "Flujo de trabajo mobile multiplataforma: SDD con sus agentes (requirements-analyst, android-architect, android-developer, code-reviewer, test-reviewer), skills MobiAI (TDD, debugging, verificación, PRs, crashes, Brain, Graph), Flutter y React Native. En cada proyecto mobile nuevo copia los agentes SDD a .claude/agents e inicializa MobiAI Brain y Graph.",
   "author": {
     "name": "Marta Jiménez"
   },
-  "keywords": ["sdd", "mobiai", "mobile", "flutter", "react-native"]
+  "keywords": ["sdd", "agents", "mobiai", "mobile", "flutter", "react-native"]
 }

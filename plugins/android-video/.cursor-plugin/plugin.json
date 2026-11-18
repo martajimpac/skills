@@ -1,0 +1,10 @@
+{
+  "name": "android-video",
+  "version": "1.0.0",
+  "description": "Skills para apps Android con vídeo: Media3/ExoPlayer con Google Cast, migración de Leanback a Compose for TV y apps de vídeo aparcadas en Android Auto/Automotive.",
+  "author": {
+    "name": "Marta Jiménez"
+  },
+  "keywords": ["android", "video", "exoplayer", "media3", "cast", "tv", "android-auto"],
+  "skills": "./skills/"
+}

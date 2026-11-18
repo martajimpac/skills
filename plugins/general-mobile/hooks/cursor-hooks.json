@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "bash ./scripts/project-init.sh cursor",
+        "timeout": 300
+      }
+    ]
+  }
+}

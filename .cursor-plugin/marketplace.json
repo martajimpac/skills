@@ -1,0 +1,54 @@
+{
+  "name": "ia-skills",
+  "owner": {
+    "name": "Marta Jiménez"
+  },
+  "metadata": {
+    "description": "Marketplace personal de skills y agentes para Cursor: mobile general, Android, vídeo, KMP, iOS y Supabase.",
+    "version": "1.1.0"
+  },
+  "plugins": [
+    {
+      "name": "general-mobile",
+      "source": "./plugins/general-mobile",
+      "description": "Flujo de trabajo mobile multiplataforma: SDD con sus agentes, skills MobiAI, Flutter y React Native. Copia los agentes SDD a cada proyecto mobile nuevo e inicializa MobiAI Brain y Graph.",
+      "version": "1.4.0",
+      "category": "development"
+    },
+    {
+      "name": "android",
+      "source": "./plugins/android",
+      "description": "Skills y agentes para Android: Compose, coroutines, navegación, rendimiento, seguridad, Play, Wear OS, XR, IA on-device, build, tests y dispositivo.",
+      "version": "1.1.0",
+      "category": "development"
+    },
+    {
+      "name": "android-video",
+      "source": "./plugins/android-video",
+      "description": "Apps Android con vídeo: Media3/ExoPlayer con Google Cast, Compose for TV y apps de vídeo en Android Auto/Automotive.",
+      "version": "1.0.0",
+      "category": "development"
+    },
+    {
+      "name": "kmp",
+      "source": "./plugins/kmp",
+      "description": "Kotlin Multiplatform: código compartido, expect/actual, build y tests.",
+      "version": "1.0.0",
+      "category": "development"
+    },
+    {
+      "name": "ios",
+      "source": "./plugins/ios",
+      "description": "Skills para iOS: arquitectura, build, simulador y tests.",
+      "version": "1.0.0",
+      "category": "development"
+    },
+    {
+      "name": "supabase",
+      "source": "./plugins/supabase",
+      "description": "Skills de Supabase y buenas prácticas de Postgres, más el servidor MCP oficial de Supabase.",
+      "version": "1.0.0",
+      "category": "database"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "name": "ios",
+  "version": "1.0.0",
+  "description": "Skills para iOS: arquitectura, build, simulador y tests.",
+  "author": {
+    "name": "Marta Jiménez"
+  },
+  "keywords": ["ios", "swift", "swiftui"],
+  "skills": "./skills/"
+}
