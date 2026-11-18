@@ -1,459 +1,345 @@
-# IA-SKILLS · Marketplace de plugins para Claude Code
+# Guía de uso: IAS + plugins IA-SKILLS
 
-Marketplace personal con Skills y agentes agrupados en plugins por plataforma. Este repositorio es la **fuente de mantenimiento** de los plugins; para seleccionar e instalar Skills por proyecto en Windows se utiliza **IAS 2.0**.
+Esta guía explica cómo usar tus plugins en un proyecto nuevo y cómo mantenerlos con IAS en Windows. Los plugins funcionan tanto en **Claude Code** como en **Cursor**.
 
-## Estructura
+## 1. Flujo para un repositorio nuevo
 
-```text
-.
-├── .claude-plugin/
-│   └── marketplace.json        # Catálogo del marketplace de Claude Code
-├── plugins/
-│   ├── general-mobile/          # Flujo mobile multiplataforma + hook MobiAI
-│   │   ├── .claude-plugin/plugin.json
-│   │   ├── hooks/hooks.json
-│   │   ├── scripts/mobiai-init.sh
-│   │   └── skills/
-│   ├── android/                 # Skills + agentes Android
-│   │   ├── .claude-plugin/plugin.json
-│   │   ├── skills/
-│   │   └── agents/
-│   ├── android-video/           # Vídeo: Media3, TV y coche
-│   │   ├── .claude-plugin/plugin.json
-│   │   └── skills/
-│   ├── kmp/                     # Kotlin Multiplatform
-│   │   ├── .claude-plugin/plugin.json
-│   │   └── skills/
-│   ├── ios/                     # Skills iOS
-│   │   ├── .claude-plugin/plugin.json
-│   │   └── skills/
-│   └── supabase/                # Skills Supabase + MCP
-│       ├── .claude-plugin/plugin.json
-│       ├── .mcp.json
-│       └── skills/
-├── scripts/sync-skills.sh      # Sincroniza Skills desde sus orígenes
-├── .sync-ignore                # Skills que sync-skills.sh no debe sobrescribir
-├── RULES.md                    # Reglas SDD para CLAUDE.md / AGENTS.md
-└── README.md
-```
+Sigue estos pasos cada vez que empieces a trabajar en un proyecto (repositorio) nuevo.
 
-## Plugins
+### Paso 1. Añadir el marketplace (solo la primera vez en cada equipo)
 
-| Plugin | Contenido |
-|---|---|
-| `general-mobile` | **Flujo de trabajo:** `spec-driven-development`, `using-mobiai`, `mobiai-mobile-tdd`, `mobiai-mobile-debugging`, `mobiai-mobile-verification`, `mobiai-mobile-worktrees`, `mobiai-review-code`, `mobiai-write-tests`, `mobiai-create-pr`, `mobiai-fix-issue`<br>**Bugs y crashes:** `mobiai-analyze-crash`, `mobiai-crashlytics`, `mobiai-reproduce-bug`<br>**MobiAI:** `mobiai-brain`, `mobiai-graph`, `mobiai-update`, `mobiai-writing-skills`<br>**Otros frameworks:** `mobiai-flutter`, `mobiai-react-native`<br>**Hook `SessionStart`:** ejecuta `mobiai brain init` y `mobiai graph init` (ver abajo). |
-| `android` | **UI y Compose:** `android-jetpack-compose`, `jetpack-compose-performance`, `adaptive`, `edge-to-edge`, `styles`, `migrate-xml-views-to-jetpack-compose`, `one-shot-ui-events`, `glance-canonical-layouts`<br>**Navegación:** `navigation-3`, `navigation-event`<br>**Arquitectura, build y tests:** `mobiai-android-architecture`, `mobiai-android-build`, `mobiai-android-testing`, `mobiai-android-device`, `android-kotlin-coroutines`, `agp-9-upgrade`, `android-cli`, `testing-setup`<br>**Rendimiento:** `android-profiler`, `anr-audit-and-fix`<br>**Seguridad e identidad:** `android-intent-security`, `android-permissions-security`, `restore-credentials`, `verified-email`<br>**Google Play:** `play-billing-library-version-upgrade`, `play-policy-insights`, `engage-sdk-integration`<br>**Hardware:** `camerax`<br>**Wear OS y XR:** `wear-compose-m3`, `wear-widgets`, `display-glasses-with-jetpack-compose-glimmer`, `projected-hardware`<br>**IA on-device:** `litert-lm`, `litert-runtime`, `ml-kit-genai-prompt-api`<br>**Agentes:** `android-architect`, `android-developer`, `code-reviewer`, `requirements-analyst`, `test-reviewer`. |
-| `android-video` | `media3-cast-integration` (ExoPlayer/Media3 + Google Cast), `leanback-to-compose-tv-migration` (Android TV), `android-for-cars-parked-apps` (vídeo en Android Auto/Automotive). |
-| `kmp` | `mobiai-kmp`. |
-| `ios` | `mobiai-ios-architecture`, `mobiai-ios-build`, `mobiai-ios-device`, `mobiai-ios-testing`. |
-| `supabase` | Skills: `supabase`, `supabase-postgres-best-practices`.<br>MCP: `supabase` (`https://mcp.supabase.com/mcp`, autenticación OAuth la primera vez vía `/mcp`). |
-
----
-
-# Usar IAS 2.0 en Windows
-
-IAS permite mantener una selección de Skills distinta para cada repositorio. Lee los plugins personalizados instalados localmente en:
-
-```text
-%USERPROFILE%\.ias\plugins
-```
-
-No utiliza el catálogo global de MobiAI como fuente de Skills. La selección del proyecto se guarda en `.ias\project.json`, y las copias que IAS administra se registran en `.ias\managed.json`.
-
-> **Regla principal:** ejecuta los comandos de proyecto desde la raíz del repositorio que quieras configurar. No ejecutes `ias select`, `ias install` o `ias update` desde `C:\Users\<usuario>` ni desde la carpeta de instalación de IAS.
-
-## Requisitos
-
-- Windows PowerShell 5.1.
-- IAS 2.0 instalado y disponible en el `PATH`.
-- Los plugins personalizados dentro de `%USERPROFILE%\.ias\plugins`.
-- MobiAI instalado para utilizar `ias update`.
-
-Comprueba que el lanzador está disponible:
-
-```powershell
-Get-Command ias -All
-```
-
-Debe aparecer como `Application` y apuntar a:
-
-```text
-%USERPROFILE%\.ias\bin\ias.cmd
-```
-
-## 1. Comprobar plugins y catálogo
-
-Ver los plugins locales y el número de Skills:
-
-```powershell
-ias plugins
-```
-
-Reconstruir el índice local a partir de los plugins instalados:
-
-```powershell
-ias catalog update
-```
-
-Este comando **solo indexa las carpetas locales**. No descarga ni actualiza plugins.
-
-Listar todas las Skills:
-
-```powershell
-ias list
-```
-
-Filtrar por plugin:
-
-```powershell
-ias list android
-ias list general-mobile
-ias list ios
-ias list supabase
-```
-
-Los identificadores de Skill tienen el formato `plugin/skill`, por ejemplo:
-
-```text
-android/adaptive
-general-mobile/mobiai-brain
-general-mobile/mobiai-graph
-supabase/supabase
-```
-
-## 2. Configurar un repositorio nuevo
-
-Entra en la raíz del repositorio:
-
-```powershell
-cd "C:\ruta\de\tu\repositorio"
-Get-Location
-```
-
-Consulta las Skills disponibles:
-
-```powershell
-ias list
-```
-
-Abre el selector interactivo:
-
-```powershell
-ias select
-```
-
-Selecciona los números separados por comas, por ejemplo:
-
-```text
-1,3,7,12
-```
-
-Opciones del selector:
-
-- `all`: selecciona todas las Skills mostradas.
-- `q`: cancela sin guardar.
-- Los elementos marcados con `[x]` ya están seleccionados.
-
-También puedes limitar el selector a un plugin:
-
-```powershell
-ias select android
-```
-
-Al seleccionar un plugin concreto, IAS conserva la selección de los demás plugins y reemplaza la selección de ese plugin.
-
-**Atención:** `ias select` sin filtro reemplaza la selección completa del repositorio por los elementos que marques en esa operación. Revisa las marcas antes de guardar.
-
-La selección queda guardada en:
-
-```text
-.ias\project.json
-```
-
-## 3. Instalar las Skills seleccionadas
-
-Desde la raíz del repositorio:
-
-```powershell
-ias install
-```
-
-IAS instala las Skills seleccionadas y no ignoradas en las carpetas locales del proyecto:
-
-```text
-.claude\skills\<skill>\
-.cursor\skills\<skill>\
-```
-
-No instala Skills que no hayas seleccionado.
-
-IAS registra las copias que administra en:
-
-```text
-.ias\managed.json
-```
-
-### Si ya existe una carpeta de Skill
-
-Si el destino ya existe y no está registrado como gestionado por IAS, IAS lo protege y no lo sobrescribe. Esto evita reemplazar contenido que pueda pertenecer al usuario o a otra herramienta.
-
-Si quieres registrar una Skill existente, consulta **Adoptar Skills existentes**.
-
-## 4. Adoptar Skills existentes
-
-Si ya tenías Skills instaladas en el repositorio antes de empezar a usar IAS, ejecuta:
-
-```powershell
-ias adopt
-```
-
-IAS solo debe adoptar una carpeta si su contenido coincide exactamente con la Skill de origen. Si no coincide, la deja intacta y no la registra.
-
-La adopción no debe borrar ni sobrescribir las carpetas existentes. Después, comprueba el resultado:
-
-```powershell
-ias status
-```
-
-## 5. Comprobar el estado del proyecto
-
-```powershell
-ias status
-```
-
-Muestra las Skills seleccionadas y su estado de gestión/instalación en Claude y Cursor.
-
-También puedes consultar la selección y el catálogo:
-
-```powershell
-ias list
-```
-
-## 6. Actualizar un proyecto
-
-Cuando las Skills ya estén instaladas y gestionadas por IAS, ejecuta desde la raíz del repositorio:
-
-```powershell
-ias update
-```
-
-IAS realiza estas operaciones en orden:
-
-1. Comprueba que existe `~\.mobiai\state\installed.json` y que no hay packs globales registrados.
-2. Ejecuta `mobiai update`. Si falla la comprobación o el comando devuelve un error, IAS detiene la operación.
-3. Actualiza exclusivamente las Skills seleccionadas en el repositorio actual, que no estén ignoradas y que IAS ya tenga registradas como gestionadas.
-
-**`ias update` no es el comando para instalar una Skill por primera vez.** Para una primera instalación o para incorporar una selección nueva, utiliza `ias install`.
-
-Antes de reemplazar una Skill gestionada, IAS guarda una copia de seguridad bajo:
-
-```text
-.ias\backups\
-```
-
-Flujo habitual:
-
-```powershell
-ias update
-ias status
-```
-
-> `mobiai update` actualiza MobiAI y su catálogo. No actualiza automáticamente los plugins personalizados de `%USERPROFILE%\.ias\plugins`; esos plugins deben actualizarse por su propio procedimiento.
-
-## 7. Ignorar y restaurar Skills
-
-Las exclusiones son globales para IAS: se aplican a todos los repositorios gestionados por el usuario.
-
-Listar las Skills ignoradas:
-
-```powershell
-ias ignore
-```
-
-Ignorar una Skill usando su identificador completo:
-
-```powershell
-ias ignore android/adaptive
-```
-
-Dejar de ignorarla:
-
-```powershell
-ias unignore android/adaptive
-```
-
-Ignorar una Skill evita que IAS la ofrezca/instale o actualice en las operaciones correspondientes. **No elimina las copias ya instaladas** en los repositorios.
-
-## 8. Archivos que IAS crea en cada repositorio
-
-```text
-tu-repositorio\
-├── .ias\
-│   ├── project.json    # Selección de Skills del proyecto
-│   ├── managed.json    # Registro de copias gestionadas por IAS
-│   └── backups\        # Copias de seguridad de actualizaciones
-├── .claude\
-│   └── skills\         # Skills locales para Claude Code
-└── .cursor\
-    └── skills\         # Skills locales para Cursor
-```
-
-La fuente de plugins personalizados permanece en `%USERPROFILE%\.ias\plugins`. IAS no debe modificarla al instalar o actualizar Skills en un repositorio.
-
-Si el repositorio está versionado con Git, decide con el equipo si queréis compartir `.ias\project.json`, `.ias\managed.json` y las carpetas `.claude` / `.cursor`. No incluyas copias de seguridad salvo que exista un motivo concreto.
-
-## 9. Flujo rápido para un repositorio nuevo
-
-```powershell
-# Entrar en el repositorio
-cd "C:\ruta\de\tu\repositorio"
-
-# Consultar Skills
-ias list
-
-# Seleccionar las Skills para este proyecto
-ias select
-
-# Instalar en Claude y Cursor
-ias install
-
-# Verificar
-ias status
-```
-
-Para el mantenimiento habitual:
-
-```powershell
-cd "C:\ruta\de\tu\repositorio"
-ias update
-ias status
-```
-
-## 10. Referencia de comandos IAS
-
-| Comando | Función |
-|---|---|
-| `ias` | Muestra la ayuda |
-| `ias plugins` | Lista plugins locales y número de Skills |
-| `ias list` | Lista Skills disponibles y estados |
-| `ias list <plugin>` | Filtra por plugin |
-| `ias catalog update` | Reconstruye el índice de plugins locales |
-| `ias select` | Selecciona Skills para el repositorio actual |
-| `ias select <plugin>` | Selecciona Skills de un plugin conservando las demás selecciones |
-| `ias install` | Instala la selección en Claude y Cursor del repositorio |
-| `ias adopt` | Registra instalaciones existentes cuyo contenido coincide con el origen |
-| `ias update` | Actualiza MobiAI y las Skills seleccionadas que IAS ya gestiona |
-| `ias status` | Muestra el estado del proyecto |
-| `ias ignore` | Lista Skills ignoradas globalmente |
-| `ias ignore <plugin/skill>` | Ignora una Skill globalmente |
-| `ias unignore <plugin/skill>` | Quita una exclusión global |
-
----
-
-# Marketplace de Claude Code (instalación alternativa)
-
-El marketplace también se puede utilizar directamente desde Claude Code, de forma independiente de IAS.
-
-Añadir el marketplace:
+**Claude Code:**
 
 ```text
 /plugin marketplace add martajimpac/skills
 ```
 
-Instalar los plugins que necesites:
+**Cursor:** añade el repositorio `https://github.com/martajimpac/skills` como marketplace desde la sección de plugins. Cursor lee `.cursor-plugin/marketplace.json`.
+
+### Paso 2. Instalar los plugins que necesite el proyecto
+
+Instala siempre `general-mobile` y, además, los de la plataforma del proyecto:
+
+| Tipo de proyecto | Plugins |
+|---|---|
+| Android | `general-mobile`, `android` (+ `android-video` si es una app de vídeo) |
+| Kotlin Multiplatform | `general-mobile`, `android`, `kmp`, `ios` |
+| iOS | `general-mobile`, `ios` |
+| Flutter / React Native | `general-mobile` |
+| Con backend Supabase | añade `supabase` |
+
+En Claude Code:
 
 ```text
 /plugin install general-mobile@ia-skills
 /plugin install android@ia-skills
-/plugin install android-video@ia-skills
-/plugin install kmp@ia-skills
-/plugin install ios@ia-skills
-/plugin install supabase@ia-skills
 ```
 
-Esta vía instala plugins mediante el sistema de marketplace de Claude Code. **No es el flujo de selección por proyecto de IAS** y no debe confundirse con la instalación local en `.claude\skills` y `.cursor\skills` que realiza IAS.
+En Cursor, instala los mismos plugins desde el marketplace `ia-skills`.
 
-## Inicialización automática de MobiAI (plugin `general-mobile`)
+### Paso 3. Abrir el proyecto y empezar una sesión
 
-Los plugins de Claude Code no tienen un hook "al instalar", así que el plugin `general-mobile` usa un hook `SessionStart`. Al abrir una sesión nueva, `scripts/mobiai-init.sh`:
+Al abrir una sesión en un proyecto mobile (Android/KMP, iOS, Flutter o React Native), el hook de inicio de `general-mobile` ejecuta `scripts/project-init.sh`, que:
 
-- Solo actúa si `mobiai` está en el `PATH` y la carpeta es un proyecto móvil (tenga Git o no):
-  `settings.gradle(.kts)` (Android/KMP), `*.xcodeproj`, `*.xcworkspace` o `Package.swift` (iOS), `pubspec.yaml` (Flutter) o un `package.json` con `react-native`.
-- Ejecuta `mobiai brain init` si no existe `.mobiai/brain/`.
-- Ejecuta `mobiai graph init` si no existe `.mobiai/graph/index.json`.
+1. **Copia los agentes SDD** (`requirements-analyst`, `android-architect`, `android-developer`, `code-reviewer`, `test-reviewer`) a:
+   - `.claude/agents/` en Claude Code.
+   - `.cursor/agents/` en Cursor.
+2. **Inicializa MobiAI Brain y Graph** (`.mobiai/brain/` y `.mobiai/graph/`) si MobiAI está instalado.
 
-Así se ejecuta una vez por proyecto. Para desactivarlo, define la variable de entorno `MOBIAI_AUTO_INIT=0`.
+Es idempotente: nunca sobrescribe agentes que ya existan en el proyecto ni reinicializa MobiAI. En carpetas que no son proyectos mobile no hace nada.
 
----
+Para desactivarlo:
 
-# Mantener y publicar los plugins de este repositorio
+| Variable | Efecto |
+|---|---|
+| `SDD_AGENTS_AUTO_COPY=0` | No copia los agentes. |
+| `MOBIAI_AUTO_INIT=0` | No inicializa MobiAI. |
 
-Las Skills de este repositorio son copias de otras fuentes. Para incorporar versiones nuevas al marketplace:
+### Paso 4. Comprobar y versionar
 
-## 1. Actualizar las Skills en su origen
+Comprueba que se han creado los agentes y, si quieres compartirlos con el equipo, súbelos al repositorio del proyecto:
 
-| Origen | Skills | Comando |
-|---|---|---|
-| [MobiAI](https://github.com/ArisGuimera/MobiAI-Core) | `mobiai-*`, `using-mobiai` | `mobiai update` |
-| Android CLI (Google) | Skills de autor *Google LLC*: `adaptive`, `edge-to-edge`, `navigation-3`, `camerax`, `testing-setup`, `media3-cast-integration`, `wear-*`, etc. | `android skills update` |
-| Supabase | `supabase`, `supabase-postgres-best-practices` | `npx skills update` o `npx skills add supabase/agent-skills` |
-| skills.sh | `android-jetpack-compose`, `android-kotlin-coroutines` | `npx skills update` |
-| Propias | `spec-driven-development`, `one-shot-ui-events` | Se editan directamente en este repositorio |
+```powershell
+git status
+git add .claude/agents .cursor/agents
+git commit -m "chore: añadir agentes SDD"
+```
 
-Cada herramienta deja las Skills en su carpeta de instalación, normalmente `~/.claude/skills`, `~/.agents/skills` o `.claude/skills` dentro de un proyecto.
+A partir de aquí ya puedes trabajar con la skill `spec-driven-development`, que delega en esos agentes.
 
-## 2. Copiar los cambios a los plugins
+## 2. Qué hace cada pieza
 
-Primero simula los cambios:
+IAS y los plugins tienen responsabilidades distintas:
+
+| Herramienta | Responsabilidad |
+|---|---|
+| **IAS** | Actualiza las Skills desde sus fuentes y sincroniza las versiones nuevas con las copias que ya existen en tus plugins locales. |
+| **Repositorio IA-SKILLS** | Contiene los plugins que mantienes y publicas en tu marketplace. |
+| **Plugins de Claude Code** | Instalan las Skills y los demás componentes del plugin, como hooks, scripts, agentes y configuración MCP. |
+| **Claude Code** | Instala y actualiza los plugins que hayas elegido para tu entorno. |
+
+**Importante:** `ias update` no instala ni actualiza plugins en Claude Code o Cursor. Tampoco copia Skills directamente a sus carpetas globales. Primero actualiza tus plugins locales; después tú publicas y actualizas los plugins mediante Claude Code.
+
+## 3. Dónde están los archivos
+
+Con la configuración predeterminada, IAS se instala en:
+
+```text
+%USERPROFILE%\.ias\
+├── bin\
+│   ├── ias.cmd
+│   └── ias-core.ps1
+├── config.json
+└── .sync-ignore
+```
+
+Tus plugins locales están en:
+
+```text
+%USERPROFILE%\.ias\plugins\
+├── general-mobile\
+│   └── skills\
+├── android\
+│   └── skills\
+├── android-video\
+│   └── skills\
+├── kmp\
+│   └── skills\
+├── ios\
+│   └── skills\
+└── supabase\
+    └── skills\
+```
+
+El repositorio de marketplace que publicas puede estar en otra ubicación. Lo importante es que `pluginsPath` en `config.json` apunte a la carpeta local que contiene los plugins que quieres mantener.
+
+## 4. Comprobar IAS después de instalarlo
+
+Abre una ventana nueva de PowerShell y ejecuta:
+
+```powershell
+ias help
+ias status
+```
+
+`ias status` muestra la carpeta de plugins y las rutas de búsqueda de Skills fuente configuradas.
+
+Antes de actualizar, abre:
+
+```powershell
+notepad "$HOME\.ias\config.json"
+```
+
+Comprueba especialmente:
+
+- `pluginsPath`: debe apuntar a tu carpeta local de plugins.
+- `sourcePaths`: deben ser las carpetas reales donde las herramientas dejan las Skills descargadas o actualizadas.
+- `ignoreFile`: apunta al archivo de exclusiones.
+
+Si una herramienta instala sus Skills en otra ubicación, añade esa ruta a `sourcePaths`. IAS busca recursivamente directorios que contengan `SKILL.md`.
+
+## 5. Flujo habitual para actualizar tus plugins
+
+Cuando quieras incorporar las últimas versiones de las Skills a tus plugins:
+
+### Paso 1. Actualizar las fuentes y sincronizar los plugins
+
+En PowerShell, ejecuta:
+
+```powershell
+ias update
+```
+
+IAS realiza el siguiente proceso:
+
+1. Comprueba el estado de los packs globales registrados por MobiAI. Si detecta packs registrados o no puede verificar el estado, se detiene por seguridad antes de ejecutar `mobiai update`.
+2. Ejecuta los comandos de actualización de orígenes configurados en `config.json`, siempre que estén disponibles.
+3. Busca las Skills actualizadas en las rutas de `sourcePaths`.
+4. Recorre las Skills que ya existen en `plugins\<plugin>\skills\<skill>`.
+5. Actualiza la copia local del plugin cuando encuentra una Skill fuente con el mismo nombre.
+6. Omite las Skills incluidas en `.sync-ignore`.
+
+IAS no añade automáticamente Skills nuevas a tus plugins. Si encuentra una Skill del plugin sin una fuente correspondiente, la informa y la deja intacta.
+
+Si uno de los comandos de actualización de origen falla, IAS cancela la sincronización para evitar copiar contenido de una actualización incompleta.
+
+### Paso 2. Revisar los cambios
+
+Ve a la carpeta de tu repositorio IA-SKILLS y revisa los cambios con Git:
+
+```powershell
+git status
+git diff
+```
+
+Comprueba que cada Skill se haya actualizado en el plugin correcto. Revisa también cualquier cambio manual que quieras conservar.
+
+### Paso 3. Actualizar las versiones de los plugins
+
+Cuando cambie el contenido de un plugin, incrementa su campo `version` en:
+
+```text
+plugins/<nombre-plugin>/.claude-plugin/plugin.json
+plugins/<nombre-plugin>/.cursor-plugin/plugin.json
+```
+
+Actualiza también la versión correspondiente en:
+
+```text
+.claude-plugin/marketplace.json
+.cursor-plugin/marketplace.json
+```
+
+Hazlo únicamente para los plugins que hayan cambiado.
+
+### Paso 4. Validar y publicar
+
+Desde la raíz del repositorio del marketplace, valida la configuración:
 
 ```bash
-scripts/sync-skills.sh --dry-run ~/.claude/skills ~/.agents/skills
+claude plugin validate .
 ```
 
-Después aplica la sincronización:
+Después revisa los cambios, crea el commit y publícalos en el remoto:
 
 ```bash
-scripts/sync-skills.sh ~/.claude/skills ~/.agents/skills
+git add .
+git commit -m "chore: update plugin skills"
+git push
 ```
 
-El script:
+Adapta el mensaje del commit a los cambios reales.
 
-- Reemplaza cada Skill existente en `plugins/*/skills/<nombre>` por la versión del origen.
-- Lista como **NUEVA** cualquier Skill que no esté en ningún plugin, para que la muevas manualmente a `plugins/<plugin>/skills/`.
-- No toca las Skills listadas en `.sync-ignore` (por ejemplo, `spec-driven-development` y `mobiai-update`).
+### Paso 5. Actualizar los plugins en Claude Code
 
-## 3. Publicar una nueva versión
-
-1. Incrementa la `version` de cada plugin modificado en `plugins/<plugin>/.claude-plugin/plugin.json` y en `.claude-plugin/marketplace.json`. Claude Code solo detecta actualizaciones si cambia la versión.
-2. Valida: `claude plugin validate .`
-3. Haz commit y push.
-
-## 4. Recoger la actualización en cada equipo
+En Claude Code, actualiza el marketplace:
 
 ```text
 /plugin marketplace update ia-skills
-/plugin update <plugin>@ia-skills
 ```
 
----
+Después actualiza los plugins que quieras:
 
-# Añadir una Skill nueva
+```text
+/plugin update general-mobile@ia-skills
+/plugin update android@ia-skills
+/plugin update android-video@ia-skills
+/plugin update kmp@ia-skills
+/plugin update ios@ia-skills
+/plugin update supabase@ia-skills
+```
 
-1. Crea `plugins/<plugin>/skills/<nombre-skill>/SKILL.md` con frontmatter:
+No es necesario actualizar todos si solo has cambiado uno o unos pocos.
 
-   ```markdown
-   ---
-   name: nombre-skill
-   description: Cuándo debe usarse esta Skill.
-   ---
-   ```
+Para instalar un plugin por primera vez:
 
-2. Los agentes van en `plugins/<plugin>/agents/<nombre>.md`.
-3. Incrementa la versión del plugin y valida como se indica en **Publicar una nueva versión**.
-4. Para que IAS la detecte, actualiza el contenido del plugin en `%USERPROFILE%\.ias\plugins` y ejecuta:
+```text
+/plugin install general-mobile@ia-skills
+```
 
-   ```powershell
-   ias catalog update
-   ```
+Sustituye `general-mobile` por el plugin que quieras instalar.
 
-   Después, selecciónala en cada repositorio donde quieras utilizarla y ejecuta `ias install`.
+## 6. Qué ocurre con los componentes de los plugins
+
+IAS sincroniza únicamente el contenido de las carpetas `skills/` de tus plugins locales. No gestiona ni modifica los demás componentes.
+
+Por tanto, se conservan en el repositorio y siguen siendo responsabilidad del mecanismo de plugins de Claude Code:
+
+- **Hooks:** por ejemplo, el hook `SessionStart` de `general-mobile`.
+- **Scripts:** por ejemplo, `scripts/project-init.sh`.
+- **Agentes:** por ejemplo, los agentes de `android/agents/` y de `general-mobile/agents/`.
+- **MCP:** por ejemplo, la configuración `.mcp.json` de `supabase`.
+- **Manifiestos:** `.claude-plugin/plugin.json` y `.cursor-plugin/plugin.json` de cada plugin, y los marketplaces `.claude-plugin/marketplace.json` y `.cursor-plugin/marketplace.json`.
+
+### Agentes de SDD en `general-mobile`
+
+La skill `spec-driven-development` delega en los agentes `requirements-analyst`, `android-architect`, `android-developer`, `code-reviewer` y `test-reviewer`. Por eso `general-mobile` incluye una copia de ellos en `plugins/general-mobile/agents/`:
+
+- **Claude Code:** se instalan con `/plugin install general-mobile@ia-skills` y, además, el hook de inicio los copia a `.claude/agents/` de cada proyecto mobile.
+- **Cursor:** el plugin incluye `.cursor-plugin/plugin.json` y el repositorio `.cursor-plugin/marketplace.json`, así que Cursor instala skills y agentes al añadir el marketplace; el hook `sessionStart` los copia a `.cursor/agents/` de cada proyecto mobile.
+
+Si modificas un agente, cambia también su copia en `plugins/android/agents/` para que no diverjan.
+
+### Inicialización de MobiAI Brain y Graph
+
+La inicialización automática sigue dependiendo del plugin `general-mobile` instalado en Claude Code, no de IAS.
+
+Cuando se inicia una sesión de Claude Code, el hook `SessionStart` de ese plugin puede ejecutar `scripts/project-init.sh`. Según las condiciones definidas por el propio script, inicializa Brain o Graph si todavía no existen en el proyecto.
+
+IAS no crea, elimina ni reemplaza los datos de:
+
+```text
+.mobiai/brain/
+.mobiai/graph/
+```
+
+Tampoco modifica el registro global de packs de MobiAI.
+
+## 7. Proteger Skills personalizadas con `.sync-ignore`
+
+Si has modificado una Skill dentro de un plugin y no quieres que IAS la sobrescriba, añade su nombre al archivo indicado por `ignoreFile`.
+
+Ejemplo:
+
+```text
+# Skills con cambios propios que deben conservarse
+spec-driven-development
+mobiai-update
+```
+
+Es una exclusión por nombre: si dos plugins contienen una Skill con el mismo nombre, se omitirán ambas.
+
+Para volver a permitir su sincronización, elimina su línea del archivo.
+
+## 8. Añadir una Skill nueva a un plugin
+
+IAS actualiza Skills que ya existen en los plugins, pero no decide dónde colocar Skills nuevas.
+
+Para incorporar una nueva:
+
+1. Localiza la Skill en la carpeta fuente.
+2. Copia o crea su directorio dentro del plugin que corresponda:
+
+```text
+plugins/<plugin>/skills/<nombre-skill>/SKILL.md
+```
+
+3. Revisa su contenido y sus dependencias.
+4. Incrementa la versión del plugin y la del marketplace.
+5. Valida, publica y actualiza el plugin desde Claude Code.
+
+## 9. Comandos de referencia
+
+| Comando | Uso |
+|---|---|
+| `ias help` | Muestra los comandos disponibles. |
+| `ias status` | Comprueba las rutas configuradas. |
+| `ias update` | Actualiza orígenes configurados y sincroniza Skills existentes en los plugins locales. |
+| `/plugin marketplace update ia-skills` | Actualiza el índice del marketplace en Claude Code. |
+| `/plugin update <plugin>@ia-skills` | Actualiza un plugin instalado. |
+| `/plugin install <plugin>@ia-skills` | Instala un plugin. |
+
+## 10. Resumen: el ciclo de mantenimiento
+
+El flujo completo es:
+
+```text
+Fuentes originales de Skills
+          |
+          | ias update
+          v
+Plugins locales (%USERPROFILE%\.ias\plugins)
+          |
+          | revisar cambios + subir versiones
+          v
+Repositorio IA-SKILLS publicado
+          |
+          | /plugin marketplace update ia-skills
+          v
+/plugin update <plugin>@ia-skills
+          |
+          v
+Claude Code utiliza la nueva versión del plugin
+```
+
+**Regla sencilla:** IAS actualiza las Skills dentro de tus plugins locales; tú publicas los plugins; Claude Code instala o actualiza los plugins y ejecuta sus componentes.
