@@ -2,7 +2,7 @@
     "schemaVersion":  1,
     "source":  "C:\\Users\\marta\\.ias\\plugins",
     "generatedAt":  "2026-11-18T14:14:07",
-    "skillCount":  64,
+    "skillCount":  62,
     "plugins":  [
                     {
                         "name":  "android",
@@ -99,15 +99,6 @@
                         "description":  "Skills para Kotlin Multiplatform: código compartido, expect/actual, implementaciones por plataforma, build y tests.",
                         "skills":  [
                                        "kmp/mobiai-kmp"
-                                   ]
-                    },
-                    {
-                        "name":  "supabase",
-                        "version":  "1.0.0",
-                        "description":  "Skills de Supabase y buenas prácticas de Postgres, más el servidor MCP oficial de Supabase.",
-                        "skills":  [
-                                       "supabase/supabase",
-                                       "supabase/supabase-postgres-best-practices"
                                    ]
                     }
                 ]

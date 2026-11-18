@@ -4,8 +4,8 @@
     "name": "Marta Jiménez"
   },
   "metadata": {
-    "description": "Marketplace personal de skills y agentes para Cursor: mobile general, Android, vídeo, KMP, iOS y Supabase.",
-    "version": "1.1.0"
+    "description": "Marketplace personal de skills y agentes para Cursor: mobile general, Android, vídeo, KMP e iOS.",
+    "version": "1.2.0"
   },
   "plugins": [
     {
@@ -42,13 +42,6 @@
       "description": "Skills para iOS: arquitectura, build, simulador y tests.",
       "version": "1.0.0",
       "category": "development"
-    },
-    {
-      "name": "supabase",
-      "source": "./plugins/supabase",
-      "description": "Skills de Supabase y buenas prácticas de Postgres, más el servidor MCP oficial de Supabase.",
-      "version": "1.0.0",
-      "category": "database"
     }
   ]
 }

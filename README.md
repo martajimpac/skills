@@ -6,7 +6,9 @@ Esta guía explica cómo usar tus plugins en un proyecto nuevo y cómo mantenerl
 
 Sigue estos pasos cada vez que empieces a trabajar en un proyecto (repositorio) nuevo.
 
-### Paso 1. Añadir el marketplace (solo la primera vez en cada equipo)
+### Paso 1. Añadir los marketplaces e instalar los plugins oficiales (solo la primera vez en cada equipo)
+
+#### Marketplace propio `ia-skills`
 
 **Claude Code:**
 
@@ -14,9 +16,38 @@ Sigue estos pasos cada vez que empieces a trabajar en un proyecto (repositorio) 
 /plugin marketplace add martajimpac/skills
 ```
 
-**Cursor:** añade el repositorio `https://github.com/martajimpac/skills` como marketplace desde la sección de plugins. Cursor lee `.cursor-plugin/marketplace.json`.
+**Cursor:** el repositorio incluye `.cursor-plugin/marketplace.json`. Cursor permite usarlo de dos formas:
 
-### Paso 2. Instalar los plugins que necesite el proyecto
+- **Planes Teams/Enterprise:** **Dashboard → Plugins & MCPs → Team Marketplaces → Add Marketplace → Import from Repo** y pega `https://github.com/martajimpac/skills`.
+- **Uso personal:** clona el repositorio y copia (o enlaza) las carpetas de `plugins/` que quieras en `~/.cursor/plugins/local/`. Después reinicia Cursor o ejecuta **Developer: Reload Window**.
+
+#### Plugins oficiales: Supabase, Figma y AWS
+
+No forman parte de `ia-skills`; se instalan desde los marketplaces oficiales.
+
+**Claude Code** (marketplace oficial `claude-plugins-official`, disponible por defecto):
+
+```text
+/plugin install supabase@claude-plugins-official
+/plugin install figma@claude-plugins-official
+/plugin install aws-core@claude-plugins-official
+```
+
+Si el marketplace oficial no aparece, añádelo con `/plugin marketplace add anthropics/claude-plugins-official`.
+
+**Cursor** (Cursor Marketplace): abre **Customize** en la barra lateral, busca el plugin, pulsa **Install** y elige el ámbito (proyecto o usuario). También puedes consultarlos en [cursor.com/marketplace](https://cursor.com/marketplace):
+
+| Plugin | Nombre en Cursor Marketplace |
+|---|---|
+| Supabase | `Supabase` |
+| Figma | `Figma` |
+| AWS | `AWS Core` |
+
+Algunos piden autenticación la primera vez que se usan (OAuth de Supabase y Figma, credenciales de AWS).
+
+AWS tiene más plugins especializados (`aws-serverless`, `aws-amplify`, `databases-on-aws`, `deploy-on-aws`, `aws-data-analytics`…). Instálalos solo si el proyecto los necesita.
+
+### Paso 2. Instalar los plugins `ia-skills` que necesite el proyecto
 
 Instala siempre `general-mobile` y, además, los de la plataforma del proyecto:
 
@@ -26,7 +57,9 @@ Instala siempre `general-mobile` y, además, los de la plataforma del proyecto:
 | Kotlin Multiplatform | `general-mobile`, `android`, `kmp`, `ios` |
 | iOS | `general-mobile`, `ios` |
 | Flutter / React Native | `general-mobile` |
-| Con backend Supabase | añade `supabase` |
+| Con backend Supabase | añade el plugin oficial `supabase` (paso 1) |
+| Con diseños en Figma | añade el plugin oficial `figma` (paso 1) |
+| Con infraestructura en AWS | añade el plugin oficial `aws-core` (paso 1) |
 
 En Claude Code:
 
@@ -35,7 +68,7 @@ En Claude Code:
 /plugin install android@ia-skills
 ```
 
-En Cursor, instala los mismos plugins desde el marketplace `ia-skills`.
+En Cursor, instálalos desde **Customize** (marketplace de equipo) o déjalos en `~/.cursor/plugins/local/` (uso personal).
 
 ### Paso 3. Abrir el proyecto y empezar una sesión
 
@@ -105,9 +138,7 @@ Tus plugins locales están en:
 │   └── skills\
 ├── kmp\
 │   └── skills\
-├── ios\
-│   └── skills\
-└── supabase\
+└── ios\
     └── skills\
 ```
 
@@ -226,7 +257,6 @@ Después actualiza los plugins que quieras:
 /plugin update android-video@ia-skills
 /plugin update kmp@ia-skills
 /plugin update ios@ia-skills
-/plugin update supabase@ia-skills
 ```
 
 No es necesario actualizar todos si solo has cambiado uno o unos pocos.
@@ -248,7 +278,6 @@ Por tanto, se conservan en el repositorio y siguen siendo responsabilidad del me
 - **Hooks:** por ejemplo, el hook `SessionStart` de `general-mobile`.
 - **Scripts:** por ejemplo, `scripts/project-init.sh`.
 - **Agentes:** por ejemplo, los agentes de `android/agents/` y de `general-mobile/agents/`.
-- **MCP:** por ejemplo, la configuración `.mcp.json` de `supabase`.
 - **Manifiestos:** `.claude-plugin/plugin.json` y `.cursor-plugin/plugin.json` de cada plugin, y los marketplaces `.claude-plugin/marketplace.json` y `.cursor-plugin/marketplace.json`.
 
 ### Agentes de SDD en `general-mobile`
