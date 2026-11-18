@@ -1,0 +1,36 @@
+﻿{
+    "pluginsPath":  "C:\\Users\\marta\\.ias\\plugins",
+    "sourcePaths":  [
+                        "C:\\Users\\marta\\.claude\\skills",
+                        "C:\\Users\\marta\\.agents\\skills",
+                        "C:\\Users\\marta\\.mobiai\\cache\\catalog\\skills"
+                    ],
+    "ignoreFile":  "C:\\Users\\marta\\.ias\\.sync-ignore",
+    "skipOriginUpdates":  false,
+    "dryRun":  false,
+    "updateCommands":  [
+                           {
+                               "label":  "MobiAI",
+                               "command":  "mobiai",
+                               "args":  [
+                                            "update"
+                                        ]
+                           },
+                           {
+                               "label":  "Android CLI",
+                               "command":  "android",
+                               "args":  [
+                                            "skills",
+                                            "update"
+                                        ]
+                           },
+                           {
+                               "label":  "skills.sh / Supabase",
+                               "command":  "npx",
+                               "args":  [
+                                            "skills",
+                                            "update"
+                                        ]
+                           }
+                       ]
+}
