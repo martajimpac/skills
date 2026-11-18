@@ -1,0 +1,9 @@
+{
+  "name": "ios",
+  "version": "0.1.0",
+  "description": "Skills para iOS (en preparación).",
+  "author": {
+    "name": "Marta Jiménez"
+  },
+  "keywords": ["ios", "swift", "swiftui"]
+}

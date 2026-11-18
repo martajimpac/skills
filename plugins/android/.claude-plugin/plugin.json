@@ -1,0 +1,9 @@
+{
+  "name": "android",
+  "version": "1.0.0",
+  "description": "Skills y agentes para Android: Jetpack Compose, Kotlin Coroutines, eventos one-shot de UI y agentes SDD.",
+  "author": {
+    "name": "Marta Jiménez"
+  },
+  "keywords": ["android", "kotlin", "jetpack-compose", "coroutines"]
+}

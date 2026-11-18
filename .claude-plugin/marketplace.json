@@ -1,0 +1,40 @@
+{
+  "name": "ia-skills",
+  "owner": {
+    "name": "Marta Jiménez"
+  },
+  "metadata": {
+    "description": "Marketplace personal de skills y agentes para Claude Code: general, Android e iOS.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "general-mobile",
+      "source": "./plugins/general-mobile",
+      "description": "Skills transversales: Spec-Driven Development y MobiAI. Inicializa MobiAI Brain y Graph en cada proyecto nuevo.",
+      "version": "1.1.0",
+      "category": "development"
+    },
+    {
+      "name": "supabase",
+      "source": "./plugins/supabase",
+      "description": "Skills de Supabase y buenas prácticas de Postgres, más el servidor MCP oficial de Supabase.",
+      "version": "1.0.0",
+      "category": "database"
+    },
+    {
+      "name": "android",
+      "source": "./plugins/android",
+      "description": "Skills y agentes para Android: Jetpack Compose, Kotlin Coroutines, eventos one-shot de UI y agentes SDD (arquitecto, developer, reviewers, analista).",
+      "version": "1.0.0",
+      "category": "development"
+    },
+    {
+      "name": "ios",
+      "source": "./plugins/ios",
+      "description": "Skills para iOS (en preparación).",
+      "version": "0.1.0",
+      "category": "development"
+    }
+  ]
+}

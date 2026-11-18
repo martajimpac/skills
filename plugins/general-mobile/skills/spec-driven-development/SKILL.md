@@ -1,8 +1,7 @@
 ---
-
-name: "spec-driven-development"
+name: spec-driven-development
 description: "Use this skill when developing a new feature."
-------------------------------------------------------------
+---
 
 # Spec-Driven Development (SDD)
 
