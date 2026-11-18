@@ -1,0 +1,3 @@
+# Skills que scripts/sync-skills.sh no debe sobrescribir (tienen cambios propios).
+spec-driven-development
+mobiai-update

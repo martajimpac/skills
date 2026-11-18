@@ -7,9 +7,22 @@
 command -v mobiai >/dev/null 2>&1 || exit 0
 
 root="${CLAUDE_PROJECT_DIR:-$PWD}"
-# Solo en la raíz de un repositorio git, para no crear .mobiai en carpetas cualquiera.
-[ -e "$root/.git" ] || exit 0
 cd "$root" || exit 0
+
+# Solo en proyectos móviles, para no crear .mobiai en carpetas cualquiera.
+is_mobile_project() {
+  # Android / KMP
+  [ -f settings.gradle ] || [ -f settings.gradle.kts ] && return 0
+  # iOS
+  compgen -G "*.xcodeproj" >/dev/null || compgen -G "*.xcworkspace" >/dev/null && return 0
+  [ -f Package.swift ] && return 0
+  # Flutter
+  [ -f pubspec.yaml ] && return 0
+  # React Native
+  [ -f package.json ] && grep -q '"react-native"' package.json && return 0
+  return 1
+}
+is_mobile_project || exit 0
 
 done_items=()
 if [ ! -d ".mobiai/brain" ]; then

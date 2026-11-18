@@ -1,9 +1,9 @@
 {
   "name": "android",
-  "version": "1.0.0",
-  "description": "Skills y agentes para Android: Jetpack Compose, Kotlin Coroutines, eventos one-shot de UI y agentes SDD.",
+  "version": "1.1.0",
+  "description": "Skills y agentes para Android: Compose, coroutines, navegación, rendimiento, seguridad, Play, Wear OS, XR, IA on-device, build, tests y dispositivo.",
   "author": {
     "name": "Marta Jiménez"
   },
-  "keywords": ["android", "kotlin", "jetpack-compose", "coroutines"]
+  "keywords": ["android", "kotlin", "jetpack-compose", "coroutines", "wear-os", "xr"]
 }

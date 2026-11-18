@@ -1,0 +1,21 @@
+IAS 2.0 - Instalador corregido para Windows PowerShell 5.1
+
+INSTALACIÓN
+1. Extrae todo el ZIP.
+2. Abre PowerShell en la carpeta extraída.
+3. Ejecuta:
+   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+   .\instalar-ias-2.0.ps1
+4. Cierra y vuelve a abrir PowerShell.
+5. Comprueba:
+   Get-Command ias -All
+   ias plugins
+   ias catalog update
+   ias list
+
+CORRECCIÓN PRINCIPAL
+El motor se instala como ias-core.ps1 y el comando público es ias.cmd.
+Esto evita que PowerShell elija ias.ps1 directamente antes que ias.cmd,
+lo que provocaba el error de política de ejecución en la instalación anterior.
+El instalador guarda copias de los archivos reemplazados en
+%USERPROFILE%\.ias\installer-backups\<fecha> y no modifica los plugins.

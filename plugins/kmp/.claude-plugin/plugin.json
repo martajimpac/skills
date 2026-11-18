@@ -1,0 +1,9 @@
+{
+  "name": "kmp",
+  "version": "1.0.0",
+  "description": "Skills para Kotlin Multiplatform: código compartido, expect/actual, implementaciones por plataforma, build y tests.",
+  "author": {
+    "name": "Marta Jiménez"
+  },
+  "keywords": ["kotlin", "kmp", "multiplatform"]
+}
