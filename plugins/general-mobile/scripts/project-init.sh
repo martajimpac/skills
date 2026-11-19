@@ -5,8 +5,10 @@
 #   2. Inicializa MobiAI Brain (init + scan) y Graph si MobiAI está instalado.
 #   3. Pone las reglas de RULES.md del plugin al principio de AGENTS.md (lo crea si no existe).
 #
-# No existe un evento de "plugin instalado/actualizado", así que el hook se lanza al
-# empezar la sesión y al enviar mensajes, y este script decide comparando la versión
+# No existe un evento de "plugin instalado/actualizado". En Claude Code lo lanza un
+# monitor del plugin (monitors/monitors.json), que arranca al iniciar la sesión y al
+# instalar, actualizar o recargar plugins, y como respaldo el hook UserPromptSubmit.
+# Este script decide comparando la versión
 # del plugin con la marca guardada en el proyecto (.claude/general-mobile.version o
 # .cursor/general-mobile.version):
 #   - sin marca        -> instalación: hace los tres pasos.
@@ -16,7 +18,8 @@
 # Al actualizar, un agente solo se sobrescribe si no se ha modificado a mano desde que
 # lo copió el plugin (se comprueba con el hash guardado en la marca).
 #
-# Uso: project-init.sh [claude|cursor]
+# Uso: project-init.sh [claude|cursor] [ruta-del-proyecto]
+#   Con ruta (monitor) no se lee stdin; sin ruta (hooks) la ruta sale del JSON del hook.
 # Forzar de nuevo: borrar la marca. Desactivar: SDD_AGENTS_AUTO_COPY=0 (agentes) /
 #   MOBIAI_AUTO_INIT=0 (MobiAI) / AGENTS_MD_AUTO_RULES=0 (AGENTS.md).
 
@@ -24,9 +27,12 @@ client="${1:-claude}"
 plugin_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cr="$(printf '\r')"
 
-# El hook recibe JSON por stdin (Claude Code y Cursor).
+arg_root="${2:-}"
+
+# Los hooks reciben JSON por stdin (Claude Code y Cursor). El monitor pasa la ruta
+# como argumento y no se lee stdin, que podría quedarse abierto.
 stdin_json=""
-if [ ! -t 0 ]; then
+if [ -z "$arg_root" ] && [ ! -t 0 ]; then
   stdin_json="$(cat)"
 fi
 json_field() {
@@ -43,7 +49,7 @@ finish() {
   exit 0
 }
 
-root="${CLAUDE_PROJECT_DIR:-${CURSOR_PROJECT_DIR:-}}"
+root="${arg_root:-${CLAUDE_PROJECT_DIR:-${CURSOR_PROJECT_DIR:-}}}"
 if [ -z "$root" ] && [ -n "$stdin_json" ]; then
   # Primer elemento de "workspace_roots": [...]
   root="$(printf '%s' "$stdin_json" | tr -d '\n' \
@@ -85,10 +91,25 @@ marker="$client_dir/general-mobile.version"
 installed_version=""
 [ -f "$marker" ] && installed_version="$(sed -n 's/^version=//p' "$marker" | tr -d "$cr")"
 
-if [ -z "$installed_version" ]; then mode="install"
-elif [ "$installed_version" != "$plugin_version" ]; then mode="update"
-else finish
+[ -n "$installed_version" ] && [ "$installed_version" = "$plugin_version" ] && finish
+
+# Bloqueo para que el monitor y el hook no preparen el proyecto a la vez. Un
+# bloqueo de más de 15 minutos se considera abandonado.
+lock="$client_dir/.general-mobile.lock"
+mkdir -p "$client_dir"
+if ! mkdir "$lock" 2>/dev/null; then
+  if [ -n "$(find "$lock" -maxdepth 0 -mmin +15 2>/dev/null)" ]; then
+    rm -rf "$lock" && mkdir "$lock" 2>/dev/null || finish
+  else
+    finish
+  fi
 fi
+trap 'rm -rf "$lock"' EXIT
+# Otro proceso pudo terminar justo antes de tomar el bloqueo.
+[ -f "$marker" ] && installed_version="$(sed -n 's/^version=//p' "$marker" | tr -d "$cr")"
+[ "$installed_version" = "$plugin_version" ] && finish
+
+if [ -z "$installed_version" ]; then mode="install"; else mode="update"; fi
 
 hash_of() { cksum < "$1" | cut -d' ' -f1-2; }
 recorded_hash() { sed -n "s/^agent $1 //p" "$marker" 2>/dev/null | tr -d "$cr"; }

@@ -68,7 +68,7 @@ Además de las skills (SDD, MobiAI y React Native), la primera vez que se usa en
 - Inicializa MobiAI: `mobiai brain init`, `mobiai brain scan` y `mobiai graph init`.
 - Pone las reglas de `RULES.md` al principio de `AGENTS.md` (lo crea si no existe).
 
-Solo actúa al instalar o actualizar el plugin: guarda la versión aplicada en `.claude/general-mobile.version` (o `.cursor/…`) y, mientras no cambie, no hace nada. Al actualizar, sobrescribe los agentes que no hayas modificado a mano, actualiza las reglas de `AGENTS.md` y nunca reinicializa MobiAI. Para repetirlo, borra ese fichero.
+Se lanza sola al instalar, actualizar o recargar el plugin (`/reload-plugins`) y al abrir la sesión, sin tener que enviar ningún mensaje. Solo actúa al instalar o actualizar el plugin: guarda la versión aplicada en `.claude/general-mobile.version` (o `.cursor/…`) y, mientras no cambie, no hace nada. Al actualizar, sobrescribe los agentes que no hayas modificado a mano, actualiza las reglas de `AGENTS.md` y nunca reinicializa MobiAI. Para repetirlo, borra ese fichero.
 
 
 

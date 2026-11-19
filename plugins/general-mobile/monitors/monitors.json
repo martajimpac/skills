@@ -1,0 +1,7 @@
+[
+  {
+    "name": "project-init",
+    "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/project-init.sh\" claude \"${CLAUDE_PROJECT_DIR}\"",
+    "description": "Prepara el proyecto mobile al instalar o actualizar general-mobile (agentes SDD, MobiAI Brain/Graph y AGENTS.md)"
+  }
+]

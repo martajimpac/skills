@@ -1,16 +1,5 @@
 {
   "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/project-init.sh\" claude",
-            "timeout": 300
-          }
-        ]
-      }
-    ],
     "UserPromptSubmit": [
       {
         "hooks": [
