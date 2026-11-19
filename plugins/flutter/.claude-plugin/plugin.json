@@ -1,0 +1,9 @@
+{
+  "name": "flutter",
+  "version": "1.0.0",
+  "description": "Skills para Flutter/Dart: estructura del proyecto, gestión de estado, build, tests y debugging.",
+  "author": {
+    "name": "Marta Jiménez"
+  },
+  "keywords": ["flutter", "dart"]
+}

@@ -23,6 +23,15 @@ function Resolve-PathValue([string]$Value) {
     return [Environment]::ExpandEnvironmentVariables($Value.Replace("~", $HOME))
 }
 
+function Test-MobiAISkillRoot([string]$Path) {
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $false }
+    try {
+        $resolved = [IO.Path]::GetFullPath((Resolve-PathValue $Path)).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+        $expected = [IO.Path]::GetFullPath((Join-Path $HOME ".mobiai\cache\catalog\skills")).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+        return $resolved.Equals($expected, [StringComparison]::OrdinalIgnoreCase)
+    } catch { return $false }
+}
+
 function Get-SkillFolders([string[]]$Roots) {
     $found = @()
     foreach ($rootValue in $Roots) {
@@ -38,13 +47,12 @@ function Get-SkillFolders([string[]]$Roots) {
     return @($found)
 }
 
-function Get-IgnoredNames([string]$Path) {
+function Get-IgnoredNames($Config) {
     $set = @{}
-    if (Test-Path -LiteralPath $Path) {
-        Get-Content -LiteralPath $Path | ForEach-Object {
-            $n = $_.Trim()
-            if ($n -and -not $n.StartsWith("#")) { $set[$n.ToLowerInvariant()] = $true }
-        }
+    # Las exclusiones se almacenan en config.json como ignoredSkills.
+    foreach ($name in @($Config.ignoredSkills)) {
+        $n = ([string]$name).Trim()
+        if ($n) { $set[$n.ToLowerInvariant()] = $true }
     }
     return $set
 }
@@ -75,6 +83,410 @@ function Copy-SkillSafely([string]$Source, [string]$Destination, [bool]$WhatIf) 
     }
 }
 
+function Get-GitRepositoryRoot([string[]]$Candidates) {
+    # No asumir que el directorio actual (por ejemplo C:\Users\marta) es un repo.
+    # Capturar la salida de Git evita que stderr de Git interrumpa el motor en PS 5.1.
+    foreach ($candidate in $Candidates) {
+        if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+        $resolved = Resolve-PathValue $candidate
+        if (-not $resolved -or -not (Test-Path -LiteralPath $resolved -PathType Container)) { continue }
+        try {
+            $gitOutput = @(& git -C $resolved rev-parse --show-toplevel 2>&1)
+            $gitExit = $LASTEXITCODE
+            if ($gitExit -eq 0 -and $gitOutput.Count -gt 0) {
+                $root = ([string]$gitOutput[-1]).Trim()
+                if ($root -and (Test-Path -LiteralPath (Join-Path $root '.git'))) { return $root }
+                # Worktrees pueden tener .git como archivo.
+                if ($root -and (Test-Path -LiteralPath (Join-Path $root '.git') -PathType Leaf)) { return $root }
+            }
+        } catch { continue }
+    }
+    return $null
+}
+
+function Get-RelativeGitPath([string]$Root, [string]$Path) {
+    $rootFull = [IO.Path]::GetFullPath($Root).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+    $pathFull = [IO.Path]::GetFullPath($Path)
+    if (-not $pathFull.StartsWith($rootFull, [StringComparison]::OrdinalIgnoreCase)) { return $null }
+    $relative = $pathFull.Substring($rootFull.Length).TrimStart([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+    return $relative.Replace('\', '/')
+}
+
+function Get-GitChangedFiles([string]$RepoRoot) {
+    $files = @()
+    try {
+        $diffOutput = @(& git -C $RepoRoot diff --name-only HEAD 2>&1)
+        if ($LASTEXITCODE -eq 0) { $files += @($diffOutput | Where-Object { $_ }) }
+    } catch { }
+    try {
+        $untrackedOutput = @(& git -C $RepoRoot ls-files --others --exclude-standard 2>&1)
+        if ($LASTEXITCODE -eq 0) { $files += @($untrackedOutput | Where-Object { $_ }) }
+    } catch { }
+    return @($files | ForEach-Object { ([string]$_).Replace('\', '/') } | Sort-Object -Unique)
+}
+
+function Increment-PatchVersion([string]$Version) {
+    if ($Version -match '^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$') {
+        return ('{0}.{1}.{2}' -f $Matches[1], $Matches[2], ([int]$Matches[3] + 1))
+    }
+    return $null
+}
+
+function Update-MarketplaceVersion([string]$MarketplacePath, [string[]]$Names, [string]$NewVersion) {
+    if (-not (Test-Path -LiteralPath $MarketplacePath -PathType Leaf)) { return $false }
+    try { $market = Get-Content -LiteralPath $MarketplacePath -Raw | ConvertFrom-Json }
+    catch { Say "No se pudo leer marketplace.json: $($_.Exception.Message)" "Yellow"; return $false }
+    $changed = $false
+    function Visit-MarketplaceNode($node, [string[]]$TargetNames, [string]$Version) {
+        if ($null -eq $node) { return }
+        if ($node -is [System.Array]) {
+            foreach ($item in $node) { Visit-MarketplaceNode $item $TargetNames $Version }
+            return
+        }
+        if ($node -is [System.Management.Automation.PSCustomObject]) {
+            $nameProp = $node.PSObject.Properties['name']
+            $versionProp = $node.PSObject.Properties['version']
+            if ($nameProp -and $versionProp -and ([string]$nameProp.Value -in $TargetNames)) {
+                $versionProp.Value = $Version
+            }
+            foreach ($prop in $node.PSObject.Properties) { Visit-MarketplaceNode $prop.Value $TargetNames $Version }
+        }
+    }
+    $before = $market | ConvertTo-Json -Depth 50
+    Visit-MarketplaceNode $market $Names $NewVersion
+    $after = $market | ConvertTo-Json -Depth 50
+    if ($before -ne $after) {
+        $after | Set-Content -LiteralPath $MarketplacePath -Encoding UTF8
+        return $true
+    }
+    return $false
+}
+
+function Sync-UpdatedSkillsToRepository($Config, [object[]]$UpdatedSkills, [string]$LocalPluginsPath) {
+    if (-not $UpdatedSkills -or $UpdatedSkills.Count -eq 0) { return }
+    $candidateRoots = @()
+    if ($Config.repositoryPath) { $candidateRoots += [string]$Config.repositoryPath }
+    $repoRoot = Get-GitRepositoryRoot -Candidates $candidateRoots
+    if (-not $repoRoot) {
+        Say "No se detectó repositorio Git para sincronizar las Skills actualizadas con el marketplace." "Yellow"
+        return
+    }
+    $repoPlugins = Join-Path $repoRoot "plugins"
+    if (-not (Test-Path -LiteralPath $repoPlugins -PathType Container)) {
+        Say "El repositorio detectado no contiene carpeta plugins; se omite sincronización al marketplace." "Yellow"
+        return
+    }
+    foreach ($record in $UpdatedSkills) {
+        $destination = Join-Path $repoPlugins "$($record.Plugin)\skills\$($record.Skill)"
+        if (-not (Test-Path -LiteralPath $destination -PathType Container)) {
+            Say "Skill $($record.Plugin)/$($record.Skill) no existe en el repositorio; no se añade automáticamente." "Yellow"
+            continue
+        }
+        $source = [string]$record.Source
+        $sourceFull = [IO.Path]::GetFullPath($source).TrimEnd('\')
+        $destinationFull = [IO.Path]::GetFullPath($destination).TrimEnd('\')
+        if ($sourceFull -ieq $destinationFull) { continue }
+        Copy-SkillSafely -Source $source -Destination $destination -WhatIf ([bool]$Config.dryRun)
+        if (-not $Config.dryRun) { Say "Marketplace sincronizado: $($record.Plugin)/$($record.Skill)" "Green" }
+    }
+}
+
+function Invoke-AutomaticPluginVersionBumps($Config, [string]$PluginsPath) {
+    $candidateRoots = @()
+    if ($Config.repositoryPath) { $candidateRoots += [string]$Config.repositoryPath }
+    $repoRoot = Get-GitRepositoryRoot -Candidates $candidateRoots
+    if (-not $repoRoot) {
+        Say "No se detectó un repositorio Git. No se actualizarán versiones de plugins; configura repositoryPath en config.json o ejecuta ias update desde el repositorio." "Yellow"
+        return
+    }
+
+    $repoPlugins = Join-Path $repoRoot "plugins"
+    if (-not (Test-Path -LiteralPath $repoPlugins -PathType Container)) {
+        # Si pluginsPath está dentro del repositorio, se utiliza esa ruta.
+        $relativePlugins = Get-RelativeGitPath -Root $repoRoot -Path $PluginsPath
+        if ($relativePlugins) { $repoPlugins = $PluginsPath }
+    }
+    $relativePluginRoot = Get-RelativeGitPath -Root $repoRoot -Path $repoPlugins
+    if (-not $relativePluginRoot) {
+        Say "La carpeta de plugins no está dentro del repositorio Git detectado. No se pueden mapear cambios a plugins." "Yellow"
+        return
+    }
+    $prefix = $relativePluginRoot.TrimEnd('/') + '/'
+    $changedFiles = @(Get-GitChangedFiles -RepoRoot $repoRoot)
+    # Los cambios exclusivamente de metadatos no provocan otro incremento.
+    $contentFiles = @($changedFiles | Where-Object {
+        $_ -notmatch '(^|/)\.claude-plugin/plugin\.json$' -and
+        $_ -notmatch '^\.claude-plugin/marketplace\.json$'
+    })
+    $pluginNames = @((Get-ChildItem -LiteralPath $repoPlugins -Directory | Select-Object -ExpandProperty Name))
+    $changedPlugins = @()
+    foreach ($file in $contentFiles) {
+        if ($file.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
+            $remainder = $file.Substring($prefix.Length)
+            $pluginName = ($remainder -split '/', 2)[0]
+            if ($pluginName -in $pluginNames) { $changedPlugins += $pluginName }
+        }
+    }
+    $changedPlugins = @($changedPlugins | Sort-Object -Unique)
+    if ($changedPlugins.Count -eq 0) {
+        Say "Git diff: no se detectan cambios de contenido en plugins que requieran incrementar versión." "Green"
+        return
+    }
+
+    $marketplacePath = Join-Path $repoRoot ".claude-plugin\marketplace.json"
+    foreach ($pluginName in $changedPlugins) {
+        $pluginManifest = Join-Path $repoPlugins "$pluginName\.claude-plugin\plugin.json"
+        if (-not (Test-Path -LiteralPath $pluginManifest -PathType Leaf)) {
+            Say "Plugin '$pluginName' cambió, pero no tiene plugin.json; se omite el versionado." "Yellow"
+            continue
+        }
+        try { $manifest = Get-Content -LiteralPath $pluginManifest -Raw | ConvertFrom-Json }
+        catch { Say "No se pudo leer plugin.json de '$pluginName': $($_.Exception.Message)" "Yellow"; continue }
+        $oldVersion = [string]$manifest.version
+        # Evita volver a incrementar en cada ejecución si los cambios siguen sin commit.
+        $manifestRelative = Get-RelativeGitPath -Root $repoRoot -Path $pluginManifest
+        $headManifest = $null
+        if ($manifestRelative) {
+            try {
+                $headText = @(& git -C $repoRoot show ("HEAD:{0}" -f $manifestRelative) 2>&1)
+                if ($LASTEXITCODE -eq 0 -and $headText) {
+                    try { $headManifest = ($headText -join "`n") | ConvertFrom-Json } catch { $headManifest = $null }
+                }
+            } catch { $headManifest = $null }
+        }
+        if ($headManifest -and ([string]$headManifest.version -ne $oldVersion)) {
+            Say "'$pluginName' ya tiene una versión modificada respecto a HEAD ($([string]$headManifest.version) -> $oldVersion); no se vuelve a incrementar." "Yellow"
+            continue
+        }
+        $newVersion = Increment-PatchVersion $oldVersion
+        if (-not $newVersion) {
+            Say "Versión '$oldVersion' de '$pluginName' no es SemVer X.Y.Z; se omite." "Yellow"
+            continue
+        }
+        $manifest.version = $newVersion
+        $manifest | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $pluginManifest -Encoding UTF8
+        $names = @($pluginName)
+        if ($manifest.name) { $names += [string]$manifest.name }
+        $marketplaceUpdated = Update-MarketplaceVersion -MarketplacePath $marketplacePath -Names $names -NewVersion $newVersion
+        if ($marketplaceUpdated) {
+            Say "Versión automática: $pluginName $oldVersion -> $newVersion (plugin.json + marketplace.json)" "Green"
+        } else {
+            Say "Versión automática: $pluginName $oldVersion -> $newVersion (plugin.json; no se encontró entrada version coincidente en marketplace.json)" "Yellow"
+        }
+    }
+}
+
+function Get-PluginSkillNames([string]$PluginsPath, [string]$RepositoryPath) {
+    $names = @{}
+    $roots = @($PluginsPath)
+    $resolvedRepository = Resolve-PathValue $RepositoryPath
+    if ($resolvedRepository) { $roots += (Join-Path $resolvedRepository "plugins") }
+    foreach ($root in $roots) {
+        if (-not $root -or -not (Test-Path -LiteralPath $root -PathType Container)) { continue }
+        Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+            $skillsDir = Join-Path $_.FullName "skills"
+            if (Test-Path -LiteralPath $skillsDir -PathType Container) {
+                Get-ChildItem -LiteralPath $skillsDir -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+                    $names[$_.Name.ToLowerInvariant()] = $true
+                }
+            }
+        }
+    }
+    return $names
+}
+
+function Get-PluginChoices([string]$PluginsPath, [string]$RepositoryPath) {
+    # Combina plugins locales con plugins del repositorio configurado. Esto permite
+    # que plugins recién añadidos (por ejemplo flutter) estén disponibles aunque
+    # todavía no exista su carpeta local en ~/.ias/plugins.
+    $pluginNames = @{}
+    if (Test-Path -LiteralPath $PluginsPath -PathType Container) {
+        Get-ChildItem -LiteralPath $PluginsPath -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+            $pluginNames[$_.Name.ToLowerInvariant()] = $_.Name
+        }
+    }
+    $repoRoot = $null
+    if ($RepositoryPath) { $repoRoot = Get-GitRepositoryRoot -Candidates @($RepositoryPath) }
+    if ($repoRoot) {
+        $repoPlugins = Join-Path $repoRoot "plugins"
+        if (Test-Path -LiteralPath $repoPlugins -PathType Container) {
+            Get-ChildItem -LiteralPath $repoPlugins -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+                $pluginNames[$_.Name.ToLowerInvariant()] = $_.Name
+            }
+        }
+    }
+    return @($pluginNames.Values | Sort-Object)
+}
+
+function Save-IgnoredSkillToConfig([string]$SkillName, $Config, [bool]$DryRun) {
+    if ($DryRun) {
+        Say "WHATIF: se guardaría '$SkillName' en ignoredSkills de config.json" "Yellow"
+        return $true
+    }
+    try {
+        $configFile = $ConfigPath
+        if (Test-Path -LiteralPath $configFile -PathType Leaf) {
+            $configToSave = Get-Content -LiteralPath $configFile -Raw | ConvertFrom-Json
+        } else {
+            $configToSave = $Config
+        }
+
+        $names = @()
+        if ($configToSave.PSObject.Properties['ignoredSkills']) {
+            $names += @($configToSave.ignoredSkills)
+        }
+        $alreadyPresent = @($names | ForEach-Object { ([string]$_).Trim() } | Where-Object { $_ }) -contains $SkillName
+        if (-not $alreadyPresent) { $names += $SkillName }
+        $names = @($names | ForEach-Object { ([string]$_).Trim() } | Where-Object { $_ } | Sort-Object -Unique)
+
+        if ($configToSave.PSObject.Properties['ignoredSkills']) {
+            $configToSave.ignoredSkills = $names
+        } else {
+            $configToSave | Add-Member -NotePropertyName ignoredSkills -NotePropertyValue $names
+        }
+
+        $tempFile = "$configFile.tmp-$([guid]::NewGuid().ToString('N'))"
+        $configToSave | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $tempFile -Encoding UTF8
+        Move-Item -LiteralPath $tempFile -Destination $configFile -Force
+
+        # Mantener también el objeto de configuración en memoria actualizado.
+        if ($Config.PSObject.Properties['ignoredSkills']) {
+            $Config.ignoredSkills = $names
+        } else {
+            $Config | Add-Member -NotePropertyName ignoredSkills -NotePropertyValue $names
+        }
+        Say "Exclusión guardada en config.json: $SkillName" "Green"
+        return $true
+    } catch {
+        Say "No se pudo guardar '$SkillName' en ignoredSkills de config.json: $($_.Exception.Message)" "Red"
+        return $false
+    }
+}
+
+function Select-PluginForSkill([string]$SkillName, [string]$SkillPath, [string]$SourceRoot, [object[]]$PluginChoices) {
+    Say "Skill nueva detectada: $SkillName" "Yellow"
+    Write-Host "Carpeta donde se encontró: $SkillPath" -ForegroundColor Gray
+    if ($SourceRoot -and $SourceRoot -ne $SkillPath) {
+        Write-Host "Origen/fuente: $SourceRoot" -ForegroundColor Gray
+    }
+    $skillFile = Join-Path $SkillPath "SKILL.md"
+    if (Test-Path -LiteralPath $skillFile) {
+        $description = (Get-Content -LiteralPath $skillFile -TotalCount 18 -ErrorAction SilentlyContinue) -join "`n"
+        if ($description) { Write-Host "`nDescripción / primeras líneas:`n$description`n" -ForegroundColor Gray }
+    }
+    while ($true) {
+        Write-Host "¿Dónde quieres añadirla?" -ForegroundColor Cyan
+        for ($i = 0; $i -lt $PluginChoices.Count; $i++) {
+            Write-Host ("  [{0}] {1}" -f ($i + 1), $PluginChoices[$i])
+        }
+        Write-Host ("  [{0}] Ignorar" -f ($PluginChoices.Count + 1))
+        $answer = Read-Host "Selecciona una opción"
+        $number = 0
+        if ([int]::TryParse($answer, [ref]$number)) {
+            if ($number -ge 1 -and $number -le $PluginChoices.Count) { return [string]$PluginChoices[$number - 1] }
+            if ($number -eq ($PluginChoices.Count + 1)) { return $null }
+        }
+        Write-Host "Opción no válida. Inténtalo de nuevo." -ForegroundColor Red
+    }
+}
+
+function Add-NewSkillToPlugin([string]$Source, [string]$SkillName, [string]$PluginName, [string]$PluginsPath, [string]$RepositoryPath, [bool]$DryRun) {
+    $localDestination = Join-Path $PluginsPath "$PluginName\skills\$SkillName"
+    if (Test-Path -LiteralPath $localDestination) {
+        Say "Ya existe en el plugin local; no se añadirá duplicada: $PluginName/$SkillName" "Yellow"
+        return $false
+    }
+    Copy-SkillSafely -Source $Source -Destination $localDestination -WhatIf $DryRun
+    if ($DryRun) { return $true }
+
+    # Solo buscar el repositorio en repositoryPath configurado. No ejecutar Git
+    # desde C:\Users\... ni desde el directorio de plugins local.
+    $repoRoot = $null
+    if ($RepositoryPath) { $repoRoot = Get-GitRepositoryRoot -Candidates @($RepositoryPath) }
+    if ($repoRoot) {
+        $repoPlugins = Join-Path $repoRoot "plugins"
+        $repoDestination = Join-Path $repoPlugins "$PluginName\skills\$SkillName"
+        if (Test-Path -LiteralPath (Join-Path $repoPlugins $PluginName) -PathType Container) {
+            if (-not (Test-Path -LiteralPath $repoDestination)) {
+                Copy-SkillSafely -Source $Source -Destination $repoDestination -WhatIf $false
+                Say "Skill añadida al repositorio: plugins/$PluginName/skills/$SkillName" "Green"
+            } else {
+                Say "Ya existe en el repositorio: $PluginName/$SkillName" "Yellow"
+            }
+        } else {
+            Say "El plugin '$PluginName' no existe en el repositorio detectado; se añadió solo a plugins locales." "Yellow"
+        }
+    } else {
+        Say "No se detectó repositorio Git; la Skill se añadió solo a plugins locales." "Yellow"
+    }
+    return $true
+}
+
+function Process-NewSkills($Config, [string]$PluginsPath, [object[]]$SourceSkills, [hashtable]$Ignored) {
+    $existing = Get-PluginSkillNames -PluginsPath $PluginsPath -RepositoryPath $Config.repositoryPath
+    $pluginChoices = @(Get-PluginChoices -PluginsPath $PluginsPath -RepositoryPath $Config.repositoryPath)
+    if ($pluginChoices.Count -eq 0) { Say "No hay plugins disponibles para asignar Skills nuevas." "Yellow"; return 0 }
+    $incomingRoot = Resolve-PathValue $Config.incomingSkillsPath
+    $manualSkills = @()
+    if ($incomingRoot -and (Test-Path -LiteralPath $incomingRoot -PathType Container)) {
+        $manualSkills = @(Get-SkillFolders -Roots @($incomingRoot))
+    }
+    $allCandidates = @($SourceSkills) + @($manualSkills)
+    # Dedupe por nombre; prioridad: incoming-skills (manual) y luego sourcePaths.
+    $unique = @{}
+    foreach ($candidate in $manualSkills) { $unique[$candidate.Name.ToLowerInvariant()] = $candidate }
+    foreach ($candidate in $SourceSkills) {
+        $key = $candidate.Name.ToLowerInvariant()
+        if (-not $unique.ContainsKey($key)) { $unique[$key] = $candidate }
+    }
+    $added = 0
+    foreach ($candidate in ($unique.Values | Sort-Object Name)) {
+        $key = $candidate.Name.ToLowerInvariant()
+        if ($existing.ContainsKey($key)) { continue }
+        if ($Ignored.ContainsKey($key)) { Say "Skill nueva ignorada por ignoredSkills en config.json: $($candidate.Name)" "Yellow"; continue }
+        if (-not (Test-Path -LiteralPath (Join-Path $candidate.Path "SKILL.md") -PathType Leaf)) { continue }
+        $targetPlugin = Select-PluginForSkill -SkillName $candidate.Name -SkillPath $candidate.Path -SourceRoot $candidate.Root -PluginChoices $pluginChoices
+        if (-not $targetPlugin) {
+            Say "Ignorada: $($candidate.Name)" "Yellow"
+            [void](Save-IgnoredSkillToConfig -SkillName $candidate.Name -Config $Config -DryRun ([bool]$Config.dryRun))
+            $Ignored[$key] = $true
+            continue
+        }
+        $didAdd = Add-NewSkillToPlugin -Source $candidate.Path -SkillName $candidate.Name -PluginName $targetPlugin -PluginsPath $PluginsPath -RepositoryPath $Config.repositoryPath -DryRun ([bool]$Config.dryRun)
+        if ($didAdd) {
+            $added++
+            if (-not $Config.dryRun) { $existing[$key] = $true }
+        }
+    }
+    return $added
+}
+
+function Find-AndroidSdkManager([string]$CommandName) {
+    $resolved = Get-Command $CommandName -ErrorAction SilentlyContinue
+    if ($resolved) { return $resolved.Source }
+
+    $sdkRoots = @()
+    if ($env:ANDROID_HOME) { $sdkRoots += $env:ANDROID_HOME }
+    if ($env:ANDROID_SDK_ROOT) { $sdkRoots += $env:ANDROID_SDK_ROOT }
+    $sdkRoots += (Join-Path $env:LOCALAPPDATA "Android\Sdk")
+    $sdkRoots += (Join-Path $HOME "AppData\Local\Android\Sdk")
+    $sdkRoots = @($sdkRoots | Where-Object { $_ } | ForEach-Object { [Environment]::ExpandEnvironmentVariables($_) } | Sort-Object -Unique)
+
+    foreach ($sdkRoot in $sdkRoots) {
+        if (-not (Test-Path -LiteralPath $sdkRoot -PathType Container)) { continue }
+        $toolsRoot = Join-Path $sdkRoot "cmdline-tools"
+        if (-not (Test-Path -LiteralPath $toolsRoot -PathType Container)) { continue }
+        $candidates = @()
+        $latest = Join-Path $toolsRoot "latest\bin\sdkmanager.bat"
+        if (Test-Path -LiteralPath $latest -PathType Leaf) { $candidates += $latest }
+        $candidates += @(Get-ChildItem -LiteralPath $toolsRoot -Directory -ErrorAction SilentlyContinue | Sort-Object Name -Descending | ForEach-Object { Join-Path $_.FullName "bin\sdkmanager.bat" })
+        foreach ($candidate in $candidates) {
+            if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
+        }
+    }
+    return $null
+}
+
 function Invoke-Update {
     $cfg = Read-Config
     $plugins = Resolve-PathValue $cfg.pluginsPath
@@ -102,24 +514,56 @@ function Invoke-Update {
         foreach ($entry in $commands) {
             $exe = [string]$entry.command
             $argsList = @($entry.args)
-            if (-not (Get-Command $exe -ErrorAction SilentlyContinue)) {
+            $resolvedExe = $null
+            if ($exe -ieq "sdkmanager") {
+                Say "Android SDK detectado, pero sdkmanager está obsoleto en esta instalación. IAS no actualizará Command-line Tools automáticamente; se omite sin detener el proceso." "Yellow"
+                continue
+            }
+            $commandInfo = Get-Command $exe -ErrorAction SilentlyContinue
+            if ($commandInfo) { $resolvedExe = $commandInfo.Source }
+            if (-not $resolvedExe) {
                 Say "No está instalado '$exe'; se omite: $($entry.label)" "Yellow"
                 continue
             }
-            Say "Actualizando origen: $($entry.label)"
-            & $exe @argsList
-            if ($LASTEXITCODE -ne 0) { Fail "Falló $exe $($argsList -join ' ') (código $LASTEXITCODE). No se sincronizarán archivos." }
+            Say "Actualizando origen: $($entry.label) ($resolvedExe)"
+            & $resolvedExe @argsList
+            if ($LASTEXITCODE -ne 0) { Fail "Falló $resolvedExe $($argsList -join ' ') (código $LASTEXITCODE). No se sincronizarán archivos." }
         }
     }
 
-    $roots = @($cfg.sourcePaths)
+    $incomingRootForCheck = Resolve-PathValue $cfg.incomingSkillsPath
+    # Seguridad: las fuentes automáticas se restringen al catálogo de MobiAI.
+    # Se descartan explícitamente .claude, .cursor, .agents y cualquier otra ruta.
+    $roots = @()
+    foreach ($configuredRoot in @($cfg.sourcePaths)) {
+        $resolvedRoot = Resolve-PathValue ([string]$configuredRoot)
+        # Comparación de rutas normalizadas: el patrón anterior [\/] no
+        # reconocía correctamente las barras invertidas de Windows.
+        if (Test-MobiAISkillRoot $resolvedRoot) {
+            if (Test-Path -LiteralPath $resolvedRoot -PathType Container) {
+                $roots += $resolvedRoot
+                Say "Fuente MobiAI aceptada: $resolvedRoot" "Green"
+            } else {
+                Say "La carpeta de Skills de MobiAI no existe todavía: $resolvedRoot" "Yellow"
+            }
+        } else {
+            Say "Fuente descartada (solo se admite el catálogo de Skills de MobiAI): $resolvedRoot" "Yellow"
+        }
+    }
+    # La carpeta incoming-skills se mantiene como importación manual explícita,
+    # no como fuente automática de .claude/.cursor.
+    if ($incomingRootForCheck -and (Test-Path -LiteralPath $incomingRootForCheck -PathType Container)) {
+        $roots = @($incomingRootForCheck) + $roots
+    }
     $sourceSkills = @(Get-SkillFolders -Roots $roots)
-    if ($sourceSkills.Count -eq 0) { Fail "No se encontraron Skills fuente. Comprueba sourcePaths en $ConfigPath." }
+    if ($sourceSkills.Count -eq 0) {
+        Say "No se encontraron Skills nuevas/fuente en MobiAI ni en incoming-skills. Se continuará sin detener IAS." "Yellow"
+    }
 
-    $ignoredPath = Resolve-PathValue $cfg.ignoreFile
-    $ignored = Get-IgnoredNames $ignoredPath
+    $ignored = Get-IgnoredNames -Config $cfg
     $pluginDirs = @(Get-ChildItem -LiteralPath $plugins -Directory)
     $updated = 0
+    $updatedSkills = @()
     $ignoredCount = 0
     $notFound = @()
 
@@ -129,7 +573,7 @@ function Invoke-Update {
 
         foreach ($skill in Get-ChildItem -LiteralPath $skillsDir -Directory) {
             if ($ignored.ContainsKey($skill.Name.ToLowerInvariant())) {
-                Say "Protegida por .sync-ignore: $($plugin.Name)/$($skill.Name)" "Yellow"
+                Say "Protegida por ignoredSkills en config.json: $($plugin.Name)/$($skill.Name)" "Yellow"
                 $ignoredCount++
                 continue
             }
@@ -145,11 +589,19 @@ function Invoke-Update {
 
             $source = $matches[0].Path
             Copy-SkillSafely -Source $source -Destination $skill.FullName -WhatIf ([bool]$cfg.dryRun)
-            if (-not $cfg.dryRun) { $updated++ }
+            if (-not $cfg.dryRun) {
+                $updated++
+                $updatedSkills += [PSCustomObject]@{ Plugin = $plugin.Name; Skill = $skill.Name; Source = $source }
+            }
         }
     }
 
-    Say "Resumen: sincronizadas=$updated; ignoradas=$ignoredCount; sin fuente=$($notFound.Count)" "Green"
+    $newSkillsAdded = Process-NewSkills -Config $cfg -PluginsPath $plugins -SourceSkills $sourceSkills -Ignored $ignored
+    Say "Resumen: sincronizadas=$updated; nuevas añadidas=$newSkillsAdded; ignoradas=$ignoredCount; sin fuente=$($notFound.Count)" "Green"
+    if (-not $cfg.dryRun) {
+        Sync-UpdatedSkillsToRepository -Config $cfg -UpdatedSkills $updatedSkills -LocalPluginsPath $plugins
+        Invoke-AutomaticPluginVersionBumps -Config $cfg -PluginsPath $plugins
+    }
     foreach ($item in ($notFound | Sort-Object -Unique)) { Say "Sin fuente, no modificada: $item" "Yellow" }
     Say "Finalizado. No se han instalado plugins en Claude Code ni Cursor." "Green"
 }
@@ -170,7 +622,7 @@ switch ($Command.ToLowerInvariant()) {
     }
     "help" { 
         Write-Host "IAS - Skills updater"
-        Write-Host "  ias update  Actualiza orígenes configurados y sincroniza Skills existentes en plugins locales"
+        Write-Host "  ias update  Actualiza orígenes, sincroniza Skills y pregunta dónde colocar Skills nuevas"
         Write-Host "  ias status  Comprueba rutas configuradas"
         Write-Host "  ias help    Muestra esta ayuda"
     }
