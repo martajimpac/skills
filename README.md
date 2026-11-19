@@ -19,6 +19,14 @@ ias status
 ias help
 ```
 
+Comprueba que:
+
+- `ias help` muestra los comandos disponibles.
+- `ias status` muestra las rutas configuradas y que son válidas.
+- `ias update` actualiza MobiAI y sincroniza las Skills sin errores.
+
+Si todo funciona correctamente, IAS detectará las Skills nuevas de MobiAI, mostrará su carpeta de origen y permitirá seleccionar el plugin de destino o ignorarlas.
+
 ## 2. Cómo actualizar las Skills de los plugins
 
 Ejecuta:
@@ -62,9 +70,9 @@ Además de las skills (SDD, MobiAI y React Native), la primera vez que se usa en
 
 Solo actúa al instalar o actualizar el plugin: guarda la versión aplicada en `.claude/general-mobile.version` (o `.cursor/…`) y, mientras no cambie, no hace nada. Al actualizar, sobrescribe los agentes que no hayas modificado a mano, actualiza las reglas de `AGENTS.md` y nunca reinicializa MobiAI. Para repetirlo, borra ese fichero.
 
-### Instalar plugins
 
-### Claude Code
+
+### Instalar en Claude Code
 
 Instalar:
 
@@ -91,10 +99,9 @@ Actualizar:
 | `/plugin` | Abre el gestor de plugins |
 
 
-### Cursor
+### Instalar en Cursor
 
 Instala y actualiza los plugins desde **Customize → Marketplace**.
 Busca `ia-skills` y selecciona los plugins necesarios para el proyecto.
-
 
 
