@@ -1,15 +1,24 @@
 #!/usr/bin/env bash
-# Prepara un proyecto mobile la primera vez que se abre una sesión (Claude Code o Cursor):
+# Prepara un proyecto mobile cuando se instala o se actualiza el plugin general-mobile
+# (Claude Code o Cursor):
 #   1. Copia los agentes SDD del plugin a .claude/agents (Claude Code) o .cursor/agents (Cursor).
 #   2. Inicializa MobiAI Brain (init + scan) y Graph si MobiAI está instalado.
 #   3. Pone las reglas de RULES.md del plugin al principio de AGENTS.md (lo crea si no existe).
-# Idempotente: nunca sobrescribe agentes existentes ni reinicializa MobiAI; en
-# AGENTS.md solo toca el bloque de reglas entre marcadores.
-# En Claude Code se lanza en SessionStart y también en UserPromptSubmit (una vez
-# por sesión), para que funcione aunque el plugin se instale con la sesión abierta.
+#
+# No existe un evento de "plugin instalado/actualizado", así que el hook se lanza al
+# empezar la sesión y al enviar mensajes, y este script decide comparando la versión
+# del plugin con la marca guardada en el proyecto (.claude/general-mobile.version o
+# .cursor/general-mobile.version):
+#   - sin marca        -> instalación: hace los tres pasos.
+#   - otra versión     -> actualización: actualiza agentes y AGENTS.md, y completa MobiAI
+#                         si falta algo (nunca lo reinicializa).
+#   - misma versión    -> no hace nada.
+# Al actualizar, un agente solo se sobrescribe si no se ha modificado a mano desde que
+# lo copió el plugin (se comprueba con el hash guardado en la marca).
+#
 # Uso: project-init.sh [claude|cursor]
-# Desactivar: SDD_AGENTS_AUTO_COPY=0 (agentes) / MOBIAI_AUTO_INIT=0 (MobiAI) /
-#             AGENTS_MD_AUTO_RULES=0 (AGENTS.md).
+# Forzar de nuevo: borrar la marca. Desactivar: SDD_AGENTS_AUTO_COPY=0 (agentes) /
+#   MOBIAI_AUTO_INIT=0 (MobiAI) / AGENTS_MD_AUTO_RULES=0 (AGENTS.md).
 
 client="${1:-claude}"
 plugin_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -24,17 +33,6 @@ json_field() {
   printf '%s' "$stdin_json" | tr -d '\n' \
     | sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p"
 }
-
-# En UserPromptSubmit basta con ejecutarse una vez por sesión.
-event="$(json_field hook_event_name)"
-session_id="$(json_field session_id)"
-if [ -n "$session_id" ]; then
-  stamp="${TMPDIR:-/tmp}/general-mobile-init-$(printf '%s' "$session_id" | tr -cd 'A-Za-z0-9_-')"
-  if [ "$event" = "UserPromptSubmit" ] && [ -e "$stamp" ]; then
-    exit 0
-  fi
-  : > "$stamp" 2>/dev/null
-fi
 
 # Cursor espera JSON por stdout; los mensajes van a stderr.
 say() {
@@ -74,23 +72,59 @@ is_mobile_project() {
 }
 is_mobile_project || finish
 
+# Versión del plugin y marca del proyecto.
+if [ "$client" = "cursor" ]; then
+  client_dir=".cursor"; manifest="$plugin_root/.cursor-plugin/plugin.json"
+else
+  client_dir=".claude"; manifest="$plugin_root/.claude-plugin/plugin.json"
+fi
+plugin_version="$(tr -d '\n' < "$manifest" 2>/dev/null \
+  | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+[ -n "$plugin_version" ] || plugin_version="desconocida"
+marker="$client_dir/general-mobile.version"
+installed_version=""
+[ -f "$marker" ] && installed_version="$(sed -n 's/^version=//p' "$marker" | tr -d "$cr")"
+
+if [ -z "$installed_version" ]; then mode="install"
+elif [ "$installed_version" != "$plugin_version" ]; then mode="update"
+else finish
+fi
+
+hash_of() { cksum < "$1" | cut -d' ' -f1-2; }
+recorded_hash() { sed -n "s/^agent $1 //p" "$marker" 2>/dev/null | tr -d "$cr"; }
+
 done_items=()
+new_marker=("version=$plugin_version")
 
 # 1. Agentes SDD
 if [ "${SDD_AGENTS_AUTO_COPY:-1}" != "0" ] && [ -d "$plugin_root/agents" ]; then
-  if [ "$client" = "cursor" ]; then agents_dir=".cursor/agents"; else agents_dir=".claude/agents"; fi
-  copied=()
+  agents_dir="$client_dir/agents"
+  copied=(); updated=(); kept=()
   for src in "$plugin_root"/agents/*.md; do
     [ -f "$src" ] || continue
-    dest="$agents_dir/$(basename "$src")"
+    name="$(basename "$src")"
+    dest="$agents_dir/$name"
     if [ ! -e "$dest" ]; then
-      mkdir -p "$agents_dir" && cp "$src" "$dest" && copied+=("$(basename "$src" .md)")
+      mkdir -p "$agents_dir" && cp "$src" "$dest" && copied+=("${name%.md}")
+    elif cmp -s "$src" "$dest"; then
+      :  # ya está al día
+    elif [ "$mode" = "update" ] && [ "$(recorded_hash "$name")" = "$(hash_of "$dest")" ]; then
+      # Sin cambios manuales desde que lo copió el plugin: se actualiza.
+      cp "$src" "$dest" && updated+=("${name%.md}")
+    else
+      kept+=("${name%.md}")
     fi
+    # Solo se registran los agentes que coinciden con los del plugin; los modificados
+    # a mano quedan sin registrar y no se sobrescriben en futuras actualizaciones.
+    [ -f "$dest" ] && cmp -s "$src" "$dest" && new_marker+=("agent $name $(hash_of "$dest")")
   done
-  [ ${#copied[@]} -gt 0 ] && done_items+=("agentes en $agents_dir: ${copied[*]}")
+  [ ${#copied[@]} -gt 0 ] && done_items+=("agentes copiados a $agents_dir: ${copied[*]}")
+  [ ${#updated[@]} -gt 0 ] && done_items+=("agentes actualizados en $agents_dir: ${updated[*]}")
+  [ "$mode" = "update" ] && [ ${#kept[@]} -gt 0 ] && \
+    done_items+=("agentes con cambios propios, no sobrescritos: ${kept[*]}")
 fi
 
-# 2. MobiAI Brain y Graph
+# 2. MobiAI Brain y Graph (solo los pasos que falten; nunca se reinicializa).
 # Si mobiai no está en el PATH del hook, se busca en su ruta de instalación.
 mobiai_bin="$(command -v mobiai 2>/dev/null)"
 if [ -z "$mobiai_bin" ]; then
@@ -152,8 +186,17 @@ if [ "${AGENTS_MD_AUTO_RULES:-1}" != "0" ] && [ -f "$rules_file" ]; then
   rm -f "$tmp"
 fi
 
+# Marca con la versión aplicada.
+mkdir -p "$client_dir" && printf '%s\n' "${new_marker[@]}" > "$marker"
+
+if [ "$mode" = "install" ]; then
+  say "general-mobile $plugin_version instalado en el proyecto:"
+else
+  say "general-mobile actualizado de $installed_version a $plugin_version en el proyecto:"
+fi
 if [ ${#done_items[@]} -gt 0 ]; then
-  say "Proyecto inicializado por general-mobile:"
   for item in "${done_items[@]}"; do say "  - $item"; done
+else
+  say "  - todo estaba ya al día"
 fi
 finish
