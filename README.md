@@ -98,10 +98,45 @@ Actualizar:
 | `/plugin update <plugin>@ia-skills` | Actualiza un plugin |
 | `/plugin` | Abre el gestor de plugins |
 
-
 ### Instalar en Cursor
 
 Instala y actualiza los plugins desde **Customize → Marketplace**.
 Busca `ia-skills` y selecciona los plugins necesarios para el proyecto.
 
+## 4. Cómo instalar plugins externos (figma y aws)
+
+
+### Figma
+```bash
+claude mcp add --transport http figma -s user [https://mcp.figma.com/mcp](https://mcp.figma.com/mcp)
+Supabase
+Bash
+# Todos tus proyectos
+claude mcp add --transport http supabase -s user [https://mcp.supabase.com/mcp](https://mcp.supabase.com/mcp)
+```
+
+# Solo un proyecto específico (recomendado en repos)
+claude mcp add --transport http supabase -s project "[https://mcp.supabase.com/mcp?project_ref=](https://mcp.supabase.com/mcp?project_ref=)<PROJECT_REF>"
+AWS (requiere uvx)
+Bash
+# Core y documentación
+claude mcp add aws-core -s user -- uvx awslabs.core-mcp-server@latest
+claude mcp add aws-docs -s user -- uvx awslabs.aws-documentation-mcp-server@latest
+
+# Específicos (opcional)
+claude mcp add aws-cdk -s user -- uvx awslabs.cdk-mcp-server@latest
+claude mcp add aws-serverless -s user -- uvx awslabs.aws-serverless-mcp-server@latest
+Gestión rápida
+Autenticar (Figma/Supabase): Ejecuta /mcp dentro de claude.
+
+Ver instalados: claude mcp list
+
+Eliminar: claude mcp remove <nombre> -s user
+
+---
+
+*(Cambia `-s user` por `-s project` para compartir en Git o `-s local` solo para el repo actual).*
+user: nivel de usuario, para todos los proyectos
+project: nivel de proyecto
+local: nivel local, solo para mi
 
