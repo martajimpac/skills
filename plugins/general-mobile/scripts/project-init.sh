@@ -1,21 +1,39 @@
 #!/usr/bin/env bash
 # Prepara un proyecto mobile la primera vez que se abre una sesión (Claude Code o Cursor):
 #   1. Copia los agentes SDD del plugin a .claude/agents (Claude Code) o .cursor/agents (Cursor).
-#   2. Inicializa MobiAI Brain y Graph si MobiAI está instalado.
+#   2. Inicializa MobiAI Brain (init + scan) y Graph si MobiAI está instalado.
 #   3. Pone las reglas de RULES.md del plugin al principio de AGENTS.md (lo crea si no existe).
 # Idempotente: nunca sobrescribe agentes existentes ni reinicializa MobiAI; en
 # AGENTS.md solo toca el bloque de reglas entre marcadores.
+# En Claude Code se lanza en SessionStart y también en UserPromptSubmit (una vez
+# por sesión), para que funcione aunque el plugin se instale con la sesión abierta.
 # Uso: project-init.sh [claude|cursor]
 # Desactivar: SDD_AGENTS_AUTO_COPY=0 (agentes) / MOBIAI_AUTO_INIT=0 (MobiAI) /
 #             AGENTS_MD_AUTO_RULES=0 (AGENTS.md).
 
 client="${1:-claude}"
 plugin_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cr="$(printf '\r')"
 
-# En Cursor el hook recibe JSON por stdin; se lee para obtener workspace_roots.
+# El hook recibe JSON por stdin (Claude Code y Cursor).
 stdin_json=""
-if [ "$client" = "cursor" ] && [ ! -t 0 ]; then
+if [ ! -t 0 ]; then
   stdin_json="$(cat)"
+fi
+json_field() {
+  printf '%s' "$stdin_json" | tr -d '\n' \
+    | sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p"
+}
+
+# En UserPromptSubmit basta con ejecutarse una vez por sesión.
+event="$(json_field hook_event_name)"
+session_id="$(json_field session_id)"
+if [ -n "$session_id" ]; then
+  stamp="${TMPDIR:-/tmp}/general-mobile-init-$(printf '%s' "$session_id" | tr -cd 'A-Za-z0-9_-')"
+  if [ "$event" = "UserPromptSubmit" ] && [ -e "$stamp" ]; then
+    exit 0
+  fi
+  : > "$stamp" 2>/dev/null
 fi
 
 # Cursor espera JSON por stdout; los mensajes van a stderr.
@@ -36,6 +54,7 @@ if [ -z "$root" ] && [ -n "$stdin_json" ]; then
   # Rutas tipo /c:/Users/... -> c:/Users/...
   case "$root" in /[A-Za-z]:*) root="${root#/}" ;; esac
 fi
+[ -z "$root" ] && [ "$client" != "cursor" ] && root="$(json_field cwd | sed 's/\\\\/\\/g')"
 [ -z "$root" ] && [ "$client" != "cursor" ] && root="$PWD"
 [ -n "$root" ] || finish
 cd "$root" 2>/dev/null || finish
@@ -72,13 +91,26 @@ if [ "${SDD_AGENTS_AUTO_COPY:-1}" != "0" ] && [ -d "$plugin_root/agents" ]; then
 fi
 
 # 2. MobiAI Brain y Graph
-if [ "${MOBIAI_AUTO_INIT:-1}" != "0" ] && command -v mobiai >/dev/null 2>&1; then
-  if [ ! -d ".mobiai/brain" ]; then
-    mobiai brain init -y --root "$root" >&2 && done_items+=("MobiAI brain")
+# Si mobiai no está en el PATH del hook, se busca en su ruta de instalación.
+mobiai_bin="$(command -v mobiai 2>/dev/null)"
+if [ -z "$mobiai_bin" ]; then
+  for c in "$HOME/.mobiai/bin/mobiai" "$HOME/.mobiai/bin/mobiai.exe" \
+           "${USERPROFILE:-}/.mobiai/bin/mobiai.exe"; do
+    [ -x "$c" ] && { mobiai_bin="$c"; break; }
+  done
+fi
+if [ "${MOBIAI_AUTO_INIT:-1}" != "0" ] && [ -n "$mobiai_bin" ]; then
+  if [ ! -f ".mobiai/brain/config.json" ]; then
+    "$mobiai_bin" brain init -y --root "$root" >&2 && done_items+=("MobiAI brain init")
+  fi
+  if [ -f ".mobiai/brain/config.json" ] && [ ! -f ".mobiai/brain/scan.json" ]; then
+    "$mobiai_bin" brain scan -y --root "$root" >&2 && done_items+=("MobiAI brain scan")
   fi
   if [ ! -f ".mobiai/graph/index.json" ]; then
-    mobiai graph init -y --root "$root" >&2 && done_items+=("MobiAI graph")
+    "$mobiai_bin" graph init -y --root "$root" >&2 && done_items+=("MobiAI graph init")
   fi
+elif [ "${MOBIAI_AUTO_INIT:-1}" != "0" ]; then
+  say "general-mobile: no se encontró el CLI mobiai; MobiAI Brain y Graph no se han inicializado."
 fi
 
 # 3. AGENTS.md con las reglas de RULES.md
@@ -95,21 +127,19 @@ if [ "${AGENTS_MD_AUTO_RULES:-1}" != "0" ] && [ -f "$rules_file" ]; then
   tmp="$(mktemp)"
   {
     echo "$begin_mark"
-    tr -d '' < "$rules_file"
+    tr -d "$cr" < "$rules_file"
     echo
     echo "$end_mark"
     if [ $had_file = 1 ]; then
       # Resto de AGENTS.md sin el bloque anterior ni las líneas en blanco iniciales.
-      rest="$(awk -v b="$begin_mark" -v e="$end_mark" '
-        { line = $0; sub(/$/, "", line) }
-        line == b { skip = 1; next }
-        line == e { skip = 0; next }
+      rest="$(tr -d "$cr" < AGENTS.md | awk -v b="$begin_mark" -v e="$end_mark" '
+        $0 == b { skip = 1; next }
+        $0 == e { skip = 0; next }
         skip { next }
-        !started && line ~ /^[[:space:]]*$/ { next }
+        !started && $0 ~ /^[[:space:]]*$/ { next }
         { started = 1; print }
-      ' AGENTS.md)"
-      [ -n "$rest" ] && { echo; printf '%s
-' "$rest"; }
+      ')"
+      [ -n "$rest" ] && { echo; printf '%s\n' "$rest"; }
     fi
   } > "$tmp"
   if [ $had_file = 0 ]; then

@@ -52,6 +52,16 @@ Instala siempre `general-mobile` primero si es  una aplicación móvil, y los pl
 | Flutter | `general-mobile`, `flutter` |
 | React Native | `general-mobile` |
 
+### Qué hace `general-mobile`
+
+Además de las skills (SDD, MobiAI y React Native), la primera vez que se usa en un proyecto mobile (Android/KMP, iOS, Flutter o React Native) prepara el proyecto automáticamente:
+
+- Copia los agentes SDD a `.claude/agents` (o `.cursor/agents` en Cursor), sin sobrescribir los que ya existan.
+- Inicializa MobiAI: `mobiai brain init`, `mobiai brain scan` y `mobiai graph init`.
+- Pone las reglas de `RULES.md` al principio de `AGENTS.md` (lo crea si no existe).
+
+Se ejecuta al abrir la sesión o, si el plugin se instala con la sesión abierta, al enviar el siguiente mensaje. Solo hace los pasos que falten.
+
 ### Instalar plugins
 
 ### Claude Code
