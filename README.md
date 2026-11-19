@@ -59,7 +59,7 @@ Instala siempre `general-mobile` primero si es  una aplicación móvil, y los pl
 Instalar:
 
 ```text
-/plugin marketplace add <repositorio-ia-skills>
+/plugin marketplace add <repositorio-ia-skills>  #SOLO LA PRIMERA VEZ
 /plugin install general-mobile@ia-skills
 /plugin install android@ia-skills
 ```
